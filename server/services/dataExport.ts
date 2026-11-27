@@ -2,12 +2,14 @@
 // outside the app.
 import { all, IDENTITY_TABLES, one, run, TABLES, tx } from '../db.ts';
 import { UserError } from '../i18n.ts';
+import { ensureMeals } from './meals.ts';
 
 export const EXPORT_APP = 'open-nutrilog';
 
 export async function exportJson() {
   const tables: Record<string, unknown[]> = {};
-  for (const t of TABLES) tables[t] = await all(`SELECT * FROM ${t}`);
+  // In key order, so a product's local edit comes after the product it points at.
+  for (const t of TABLES) tables[t] = await all(`SELECT * FROM ${t} ORDER BY 1`);
   const version = (await one<{ v: number }>('SELECT max(version) AS v FROM schema_migrations'))?.v ?? 0;
   return { app: EXPORT_APP, format: 1, schemaVersion: version, exportedAt: new Date().toISOString(), tables };
 }
@@ -30,7 +32,9 @@ export async function importJson(data: any) {
       const rows = data.tables[t] as Record<string, unknown>[] | undefined;
       if (!Array.isArray(rows) || rows.length === 0) continue;
       const columns = await all<ColumnInfo>(
-        'SELECT column_name, data_type FROM information_schema.columns WHERE table_name = $1 AND table_schema = current_schema()',
+        // Generated columns (the search text) are computed by Postgres and can't be inserted.
+        `SELECT column_name, data_type FROM information_schema.columns
+         WHERE table_name = $1 AND table_schema = current_schema() AND is_generated = 'NEVER'`,
         [t],
         c,
       );
@@ -49,5 +53,7 @@ export async function importJson(data: any) {
     for (const t of IDENTITY_TABLES) {
       await run(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), coalesce((SELECT max(id) FROM ${t}), 0) + 1, false)`, [], c);
     }
+    // A diary always has meals; an export without them gets the defaults back.
+    await ensureMeals(c);
   });
 }

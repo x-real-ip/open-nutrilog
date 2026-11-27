@@ -2,7 +2,7 @@
 
 A personal, self-hosted calorie and nutrition tracker: a food diary with search, barcode scanning and recipes, daily targets from a deterministic engine, and a link with the strength training app [Open Strength](https://github.com/x-real-ip/open-strength). Mobile-first and fine in a desktop browser (sidebar from 900 px), dark theme, installable as a PWA. Runs in the homelab cluster with PostgreSQL (CloudNativePG) and is deployed through [`x-real-ip/gitops`](https://github.com/x-real-ip/gitops).
 
-> Work in progress. This first version is the skeleton: sign-in, profile, language and time zone, export/import, and the app shell. Logging, targets, food data, the link with Open Strength and the AI features follow.
+> Work in progress. Sign-in, profile, the food diary, your own products and Open Food Facts barcodes work. Targets, NEVO and the OFF text search, recipes, the link with Open Strength and the AI features follow.
 
 ## Contents
 
@@ -18,7 +18,16 @@ A personal, self-hosted calorie and nutrition tracker: a food diary with search,
 
 - **English or Dutch**: English by default; pick Dutch under Profile → Language. Screens, errors and stored text follow that choice. Numbers use a decimal point in English (42.5) and a comma in Dutch (42,5).
 - **Days in your time zone**: a diary day runs from midnight to midnight in `Europe/Amsterdam` (or the `TZ` of the server, or the zone in your profile), whatever the time zone of the device.
+- **Diary**: a day per page with breakfast, lunch, dinner and snacks. Rename or hide a meal, or add your own. Swipe through days with the arrows or tap the date to pick one. Each entry shows its energy; the day and every meal show their total, with protein, carbohydrates and fat.
+- **Adding food**: search, or pick from *Recent*, *Frequent*, *Favourites* and *My foods*. Amounts in grams or ml, or in servings ("2 × 1 slice"), with energy and macros updating as you type. *Quick add* logs only energy, or energy plus macros, without a product. Copy a meal from the day before, a meal to today, or a whole day.
+- **Barcodes**: scan with the camera (the browser's own barcode reader where it has one, such as Chrome on Android or Vanadium on GrapheneOS, otherwise a built-in WebAssembly reader) or type the number. Your own products with that barcode come first; otherwise the server looks it up at [Open Food Facts](https://world.openfoodfacts.org) and keeps a copy. An unknown barcode opens a new product with the barcode filled in.
+- **Your own products**: values per 100 g or 100 ml, optional servings and barcode. Editing a product from Open Food Facts saves your own version; the original stays as it is, and deleting your version brings it back. Star a product as a favourite, or hide it from search and lists.
+- **Offline**: entries are saved on the phone first (IndexedDB) and sent when there is a connection; the diary shows what is not synced yet. What you ate keeps its values when the product changes later.
 - **Data**: export everything as JSON and import such a file again (that replaces all data).
+
+### Open Food Facts
+
+Product data from Open Food Facts is available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). Only the server talks to OFF, never your browser: with the User-Agent `open-nutrilog/<version> (+https://github.com/x-real-ip/open-nutrilog)`, only the fields the app uses, and at most 60 product lookups per minute (OFF allows 100). Every product is cached in Postgres and fetched again after 30 days. Your own products are never sent to OFF.
 
 ## Deployment
 
@@ -99,6 +108,7 @@ All settings are environment variables. For local use they are in `.env.example`
 | `NODE_EXTRA_CA_CERTS` | Extra CA for outbound TLS, such as the Stamx CA for Authentik |
 | `PROXY_USER_HEADER`, `PROXY_EMAIL_HEADER`, `PROXY_GROUPS_HEADER`, `PROXY_LOGOUT_URL` | Proxy mode (the Authentik headers by default) |
 | `ALLOWED_USERS`, `ALLOWED_GROUPS` | Optional allowlists (comma-separated) for `oidc` and `proxy`. `ALLOWED_USERS` matches the username or email address |
+| `OFF_BASE_URL`, `OFF_TIMEOUT_MS`, `OFF_REFRESH_DAYS` | Open Food Facts API (`https://world.openfoodfacts.org`), request timeout (8000 ms) and how old a cached product may get before it is fetched again (30 days) |
 
 ## Backup, export and migration
 
@@ -115,15 +125,23 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
   db.ts                   PostgreSQL pool, migrations with an advisory lock, query helpers
   auth.ts                 none / password / proxy / oidc, signed session cookie, allowlists
   i18n.ts                 English/Dutch server text, stored text in both languages
-  routes/                 core (health, auth, profile), data (export/import)
+  routes/                 core (health, auth, profile), food (products, meals, diary), data (export/import)
   services/
     days.ts               what "a day" is, in the profile's time zone
     profile.ts            the single user's profile
+    products.ts           search, lists, your own products, local edits, barcodes and the OFF cache
+    off.ts                Open Food Facts: mapping, User-Agent, throttled lookups
+    throttle.ts           token bucket for outside APIs
+    meals.ts              meals of a day
+    diary.ts              entries (PUT by a client id), nutrient snapshots, copying
     dataExport.ts         JSON export and import
   tests/                  node:test with embedded Postgres and a local OIDC provider
 shared/types.ts           types shared by server and frontend
+shared/nutrition.ts       unit/serving conversion and totals, the same on server and phone
 web/                      React + Vite PWA
   src/i18n.ts             UI language: t('English', 'Nederlands') in place
+  src/offlineStore.ts     IndexedDB queue for diary changes not yet on the server
+  src/barcodeWasm.ts      WebAssembly barcode reader, loaded only without BarcodeDetector
 e2e/                      Playwright tests, both languages, phone and desktop
 ```
 

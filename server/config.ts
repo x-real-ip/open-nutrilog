@@ -102,6 +102,14 @@ export const config = {
     allowedGroups: list('ALLOWED_GROUPS'),
   },
 
+  /** Open Food Facts: barcode lookups (and later the live search) go to this API. */
+  off: {
+    baseUrl: (str('OFF_BASE_URL') ?? 'https://world.openfoodfacts.org').replace(/\/$/, ''),
+    timeoutMs: num('OFF_TIMEOUT_MS', 8000),
+    /** A cached product is fetched again after this many days. */
+    refreshDays: num('OFF_REFRESH_DAYS', 30),
+  },
+
   /**
    * Time zone that decides what "a day" is (diary days, day totals, training days). The profile can override it;
    * this is the default. TZ is the standard variable; without it the Netherlands.

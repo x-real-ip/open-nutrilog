@@ -39,6 +39,13 @@ export function longDate(day: string): string {
   return new Date(`${day}T12:00:00Z`).toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 }
 
+/** A YYYY-MM-DD date moved by whole calendar days. */
+export function addDaysTo(day: string, n: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Today / Yesterday / Tomorrow, else the long date. `today` comes from the server (the profile's time zone). */
 export function dayLabel(day: string, today: string): string {
   const diff = Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
