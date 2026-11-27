@@ -1,0 +1,34 @@
+# One image: Fastify serves both the API and the built PWA.
+
+# --- Build the PWA ---
+FROM docker.io/library/node:22-alpine AS web
+WORKDIR /app
+COPY shared ./shared
+COPY web/package.json web/package-lock.json ./web/
+RUN npm --prefix web ci
+COPY web ./web
+RUN npm --prefix web run build
+
+# --- Runtime ---
+FROM docker.io/library/node:22-alpine
+# Set by CI from the release tag (v1.2.3 → 1.2.3); shown in the app.
+ARG APP_VERSION=dev
+ENV NODE_ENV=production \
+    PORT=8080 \
+    WEB_DIR=/app/web/dist \
+    APP_VERSION=$APP_VERSION
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+# Node runs the TypeScript sources directly (type stripping), so there is no server build step.
+COPY server ./server
+COPY shared ./shared
+COPY --from=web /app/web/dist ./web/dist
+
+# Own non-root user; the same uid/gid is set in the deployment's securityContext.
+RUN addgroup -g 3002 open-nutrilog && adduser -u 3002 -G open-nutrilog -S -H open-nutrilog
+USER 3002:3002
+
+EXPOSE 8080
+# Migrations run from this image too: node --disable-warning=ExperimentalWarning server/migrate.ts
+CMD ["node", "--disable-warning=ExperimentalWarning", "server/index.ts"]
