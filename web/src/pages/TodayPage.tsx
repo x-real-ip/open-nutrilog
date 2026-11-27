@@ -1,16 +1,80 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { DayTarget, TargetResponse } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { useInfo } from '../App.tsx';
 import { api, onQueueChange, withPending } from '../api.ts';
-import { ErrorState, Loading, useLoad } from '../components/ui.tsx';
-import { macroLine } from '../food.ts';
-import { kcal, longDate, versionLabel } from '../format.ts';
+import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
+import { grams, kcal, longDate, versionLabel } from '../format.ts';
 import { t } from '../i18n.ts';
+
+/** A ring that fills as the day's target is eaten; red when over. */
+function BudgetRing({ eaten, target }: { eaten: number; target: number }) {
+  const r = 52;
+  const c = 2 * Math.PI * r;
+  const f = target > 0 ? Math.min(1, eaten / target) : 0;
+  const over = eaten > target;
+  return (
+    <svg className="ring" viewBox="0 0 120 120" aria-hidden="true">
+      <circle cx="60" cy="60" r={r} className="ring-track" />
+      <circle cx="60" cy="60" r={r} className={`ring-fill${over ? ' over' : ''}`} strokeDasharray={`${f * c} ${c}`} transform="rotate(-90 60 60)" />
+    </svg>
+  );
+}
+
+function MacroBar({ label, eaten, target, color }: { label: string; eaten: number; target: number; color: string }) {
+  const f = target > 0 ? Math.min(1, eaten / target) : 0;
+  return (
+    <div className="macro">
+      <div className="spread small">
+        <span>{label}</span>
+        <span className="num muted">
+          {grams(eaten)} / {grams(target)}
+        </span>
+      </div>
+      <div className="track" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={target} aria-valuenow={Math.round(eaten)}>
+        <div className="bar" style={{ width: `${f * 100}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function TrainingLine({ target, day, onChange }: { target: TargetResponse; day: string; onChange: (r: TargetResponse) => void }) {
+  const marked = target.mark.training === true;
+  const w: DayTarget['workout'] = target.target?.workout ?? null;
+  const linked = w && w.source !== 'planned';
+  const toggle = async () => {
+    try {
+      onChange(await api.setMark(day, { training: marked ? null : true }));
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  return (
+    <div className="spread training-line">
+      <span>
+        {target.target?.isTrainingDay ? (
+          <span className="tag training">
+            {linked
+              ? t(`Training day: workout of ${w!.minutes} min`, `Trainingsdag: training van ${w!.minutes} min`)
+              : t('Training day', 'Trainingsdag')}
+          </span>
+        ) : (
+          <span className="tag">{t('Rest day', 'Rustdag')}</span>
+        )}
+      </span>
+      {!linked && (
+        <button className="btn small-btn" aria-pressed={marked} onClick={() => void toggle()}>
+          {marked ? t('Not training today', 'Vandaag geen training') : t('Training today', 'Vandaag training')}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function TodayPage() {
   const info = useInfo();
-  const { data, error, loading, reload } = useLoad(() => Promise.all([api.profile(), api.day(info.today)]));
+  const { data, error, loading, reload, setData } = useLoad(() => Promise.all([api.profile(), api.day(info.today), api.target(info.today)]));
   const [, setTick] = useState(0);
   useEffect(() => onQueueChange(() => setTick((n) => n + 1)), []);
 
@@ -18,8 +82,10 @@ export default function TodayPage() {
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const [{ profile }, day] = data;
+  const [{ profile }, day, target] = data;
   const view = withPending(day);
+  const eaten = view.totals;
+  const goal = target.target;
 
   return (
     <main className="page">
@@ -33,20 +99,65 @@ export default function TodayPage() {
         {longDate(info.today)}
       </p>
 
-      {!profile && (
+      {(!profile || target.missing.length > 0) && (
         <section className="section panel stack">
-          <p style={{ margin: 0 }}>{t('Welcome! Set up your profile to get started.', 'Welkom! Stel je profiel in om te beginnen.')}</p>
+          <p style={{ margin: 0 }}>
+            {profile
+              ? t('Add your sex, age, height and weight to get a daily target.', 'Vul je geslacht, leeftijd, lengte en gewicht in voor een dagdoel.')
+              : t('Welcome! Set up your profile to get started.', 'Welkom! Stel je profiel in om te beginnen.')}
+          </p>
           <Link className="btn primary block" to="/profile">
             {t('Set up your profile', 'Profiel instellen')}
           </Link>
         </section>
       )}
 
-      <section className="section panel day-total" aria-label={t('Eaten today', 'Vandaag gegeten')}>
-        <div className="muted small">{t('Eaten today', 'Vandaag gegeten')}</div>
-        <div className="value num">{kcal(view.totals.kcal)}</div>
-        <div className="muted small">{macroLine(view.totals)}</div>
-      </section>
+      {goal ? (
+        <section className="section panel budget" aria-label={t('Today’s budget', 'Budget van vandaag')}>
+          <div className="budget-top">
+            <div className="ring-wrap">
+              <BudgetRing eaten={eaten.kcal} target={goal.kcal} />
+              <div className="ring-center">
+                <div className="value num">{Math.abs(Math.round(goal.kcal - eaten.kcal))}</div>
+                <div className="small muted">{eaten.kcal > goal.kcal ? t('kcal over', 'kcal te veel') : t('kcal left', 'kcal over')}</div>
+              </div>
+            </div>
+            <div className="stack" style={{ gap: 6 }}>
+              <div>
+                <div className="small muted">{t('Target', 'Doel')}</div>
+                <div className="num big-num">{kcal(goal.kcal)}</div>
+              </div>
+              <div>
+                <div className="small muted">{t('Eaten', 'Gegeten')}</div>
+                <div className="num big-num">{kcal(eaten.kcal)}</div>
+              </div>
+              {goal.workoutKcal > 0 && <div className="small muted">{t(`incl. ${goal.workoutKcal} kcal training`, `incl. ${goal.workoutKcal} kcal training`)}</div>}
+            </div>
+          </div>
+          <div className="macros">
+            <MacroBar label={t('Protein', 'Eiwit')} eaten={eaten.protein} target={goal.proteinG} color="var(--macro-protein)" />
+            <MacroBar label={t('Carbohydrates', 'Koolhydraten')} eaten={eaten.carbs} target={goal.carbsG} color="var(--macro-carbs)" />
+            <MacroBar label={t('Fat', 'Vet')} eaten={eaten.fat} target={goal.fatG} color="var(--macro-fat)" />
+          </div>
+          <TrainingLine target={target} day={info.today} onChange={(r) => setData([data[0], data[1], r])} />
+          {goal.floorHit && (
+            <p className="notice small" style={{ margin: 0 }}>
+              {t(
+                'Your target is kept at your resting energy: going lower for long isn’t good for you. A slower pace gets you there too.',
+                'Je doel blijft op je ruststofwisseling: langere tijd lager gaan is niet goed voor je. Rustiger aan brengt je er ook.',
+              )}
+            </p>
+          )}
+          <Link className="link-btn small" to="/targets">
+            {t('How your target is built', 'Hoe je doel is opgebouwd')}
+          </Link>
+        </section>
+      ) : (
+        <section className="section panel day-total" aria-label={t('Eaten today', 'Vandaag gegeten')}>
+          <div className="muted small">{t('Eaten today', 'Vandaag gegeten')}</div>
+          <div className="value num">{kcal(eaten.kcal)}</div>
+        </section>
+      )}
 
       <section className="section">
         <div className="list">

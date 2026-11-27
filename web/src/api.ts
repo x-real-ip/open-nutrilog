@@ -1,4 +1,19 @@
-import type { AppInfo, DiaryDay, DiaryEntry, EntryInput, Meal, Product, ProductInput, ProductLists, ProductPreference, Profile } from '@shared/types.ts';
+import type {
+  AppInfo,
+  BodyWeightEntry,
+  DayMark,
+  DiaryDay,
+  DiaryEntry,
+  EntryInput,
+  Meal,
+  Product,
+  ProductInput,
+  ProductLists,
+  ProductPreference,
+  Profile,
+  ProgressResponse,
+  TargetResponse,
+} from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { deletePending, getPending, pendingAll, putPending, type PendingOp } from './offlineStore.ts';
 import { t } from './i18n.ts';
@@ -52,6 +67,13 @@ export const api = {
 
   day: (day: string) => request<DiaryDay>('GET', `/api/diary/${day}`),
   copy: (body: { from: string; to: string; mealId?: number | null; toMealId?: number | null }) => request<DiaryDay>('POST', '/api/diary/copy', body),
+
+  target: (day: string) => request<TargetResponse>('GET', `/api/targets/${day}`),
+  setMark: (day: string, mark: Partial<DayMark>) => request<TargetResponse>('PUT', `/api/days/${day}/mark`, mark),
+  bodyWeights: () => request<{ entries: BodyWeightEntry[] }>('GET', '/api/body-weights'),
+  logBodyWeight: (weightKg: number, date?: string) => request<{ entries: BodyWeightEntry[] }>('POST', '/api/body-weights', { weightKg, date }),
+  deleteBodyWeight: (id: number) => request<{ entries: BodyWeightEntry[] }>('DELETE', `/api/body-weights/${id}`),
+  progress: (days = 56) => request<ProgressResponse>('GET', `/api/progress?days=${days}`),
 
   importJson: (data: unknown) => request<{ ok: true }>('POST', '/api/import/json', data),
 };

@@ -7,11 +7,34 @@ export type Language = 'en' | 'nl';
 
 export type AuthMode = 'none' | 'password' | 'proxy' | 'oidc';
 
+export type Sex = 'male' | 'female';
+export type Phase = 'cut' | 'maintain' | 'bulk';
+
 export interface Profile {
   name: string;
   language: Language;
   /** IANA time zone that decides what "a day" is; empty means the server default (TZ, else Europe/Amsterdam). */
   timeZone: string;
+  /** For the BMR formula. Targets need sex, age, height and weight. */
+  sex: Sex | null;
+  age: number | null;
+  heightCm: number | null;
+  /** Follows the latest weigh-in; editing it here also logs today's weight. */
+  weightKg: number | null;
+  /** Activity outside training (1.2, 1.4, 1.55 or 1.7); training itself is added per training day. */
+  neat: number;
+  phase: Phase;
+  /** % of body weight per week; capped at 1 for a cut and 0.5 for a bulk. */
+  ratePctPerWeek: number;
+  /** null: 2.0 g/kg on a cut, 1.8 otherwise. */
+  proteinGPerKg: number | null;
+  /** Training-day energy goes to carbohydrates. */
+  carbCycling: boolean;
+  metStrength: number;
+  /** Expected length of a training, used when you mark a day as a training day before the workout. */
+  trainingMinutes: number;
+  /** How much of the workout energy counts: 0, 50 or 100 %. */
+  workoutEnergyShare: number;
   updatedAt?: string;
 }
 
@@ -115,4 +138,84 @@ export interface DiaryDay {
   meals: Meal[];
   entries: DiaryEntry[];
   totals: Record<NutrientKey, number>;
+}
+
+// ---------- Targets and progress ----------
+
+export interface DayMark {
+  /** true: training day (also before the workout), false: not a training day, null: automatic. */
+  training: boolean | null;
+  /** The diary of this day is not complete; the adaptive maintenance leaves it out. */
+  incomplete: boolean;
+}
+
+export interface TargetStep {
+  id: string;
+  kcal: number | null;
+  text: string;
+}
+
+export interface DayTarget {
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  bmr: number;
+  base: number;
+  baseSource: 'formula' | 'adaptive';
+  phaseAdjust: number;
+  restKcal: number;
+  workoutKcal: number;
+  isTrainingDay: boolean;
+  floorHit: boolean;
+  workout: { minutes: number; source: 'finished' | 'in_progress' | 'planned' } | null;
+  steps: TargetStep[];
+}
+
+export interface AdaptiveView {
+  status: 'ok' | 'not_enough';
+  base: number;
+  formulaBase: number;
+  loggedDays: number;
+  weighIns: number;
+  spanDays: number;
+  text: string;
+}
+
+export interface TargetResponse {
+  day: string;
+  target: DayTarget | null;
+  /** Profile fields still needed for a target. */
+  missing: ('sex' | 'age' | 'heightCm' | 'weightKg')[];
+  mark: DayMark;
+  adaptive: AdaptiveView | null;
+}
+
+export interface BodyWeightEntry {
+  id: number;
+  date: string;
+  weightKg: number;
+}
+
+export interface ProgressDay {
+  date: string;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  logged: boolean;
+  incomplete: boolean;
+  targetKcal: number | null;
+  isTrainingDay: boolean;
+}
+
+export interface ProgressResponse {
+  days: ProgressDay[];
+  weights: { date: string; weightKg: number; trendKg: number }[];
+  /** Trend weight now minus a week ago. */
+  weeklyChangeKg: number | null;
+  weeks: { weekStart: string; avgKcal: number | null; avgTargetKcal: number | null; loggedDays: number }[];
+  /** Over the last 7 complete logged days. */
+  averages: { days: number; kcal: number; proteinG: number; carbsG: number; fatG: number } | null;
+  tdee: { weekStart: string; baseKcal: number; formulaKcal: number; adaptiveKcal: number | null }[];
 }

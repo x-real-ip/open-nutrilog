@@ -29,6 +29,10 @@ for (const lang of ['en', 'nl'] as const) {
     await expect(page.getByRole('heading', { name: T('Set up your profile', 'Profiel instellen') })).toBeVisible();
 
     await page.getByLabel(T('Name', 'Naam')).fill('Test');
+    await page.getByRole('button', { name: T('Woman', 'Vrouw') }).click();
+    await page.getByLabel(T('Age', 'Leeftijd')).fill('35');
+    await page.getByLabel(T('Height (cm)', 'Lengte (cm)')).fill('168');
+    await page.getByLabel(T('Weight (kg)', 'Gewicht (kg)')).fill('64');
     await page.getByRole('button', { name: T('Save', 'Opslaan'), exact: true }).click();
     await expect(page.getByRole('heading', { name: T('Profile', 'Profiel'), exact: true })).toBeVisible();
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Profile } from '../../shared/types.ts';
 import { config, validTimeZone } from '../config.ts';
 import { nowIso, one, run } from '../db.ts';
+import { DEFAULT_MET, DEFAULT_NEAT } from './targets.ts';
 
 const fields = z.object({
   name: z.string().trim().max(60).default(''),
@@ -12,6 +13,18 @@ const fields = z.object({
     .max(64)
     .default('')
     .refine((tz) => tz === '' || validTimeZone(tz) !== undefined, 'unknown time zone'),
+  sex: z.enum(['male', 'female']).nullable().default(null),
+  age: z.number().int().min(12).max(100).nullable().default(null),
+  heightCm: z.number().min(100).max(250).nullable().default(null),
+  weightKg: z.number().min(30).max(300).nullable().default(null),
+  neat: z.number().min(1.1).max(2).default(DEFAULT_NEAT),
+  phase: z.enum(['cut', 'maintain', 'bulk']).default('maintain'),
+  ratePctPerWeek: z.number().min(0).max(1).default(0.5),
+  proteinGPerKg: z.number().min(0.8).max(3).nullable().default(null),
+  carbCycling: z.boolean().default(true),
+  metStrength: z.number().min(2).max(10).default(DEFAULT_MET),
+  trainingMinutes: z.number().int().min(10).max(180).default(60),
+  workoutEnergyShare: z.union([z.literal(0), z.literal(50), z.literal(100)]).default(100),
 });
 
 // Every field has a default, so profiles saved by older versions keep parsing when fields are added.
