@@ -41,15 +41,34 @@ function MacroBar({ label, eaten, target, color }: { label: string; eaten: numbe
 
 function TrainingLine({ target, day, onChange }: { target: TargetResponse; day: string; onChange: (r: TargetResponse) => void }) {
   const marked = target.mark.training === true;
+  const ignored = target.mark.training === false;
   const w: DayTarget['workout'] = target.target?.workout ?? null;
   const linked = w && w.source !== 'planned';
-  const toggle = async () => {
+  const setTraining = async (training: boolean | null) => {
     try {
-      onChange(await api.setMark(day, { training: marked ? null : true }));
+      onChange(await api.setMark(day, { training }));
     } catch (e) {
       toast((e as Error).message);
     }
   };
+  const toggle = () => setTraining(marked ? null : true);
+  // A workout from Open Strength counts by itself; "doesn't count" is for the odd day it shouldn't.
+  if (linked || ignored) {
+    return (
+      <div className="spread training-line">
+        <span className={`tag ${linked ? 'training' : ''}`}>
+          {linked
+            ? w!.source === 'in_progress'
+              ? t(`Training now (Open Strength, ${w!.minutes} min so far)`, `Nu aan het trainen (Open Strength, tot nu toe ${w!.minutes} min)`)
+              : t(`Trained today: ${w!.minutes} min in Open Strength`, `Vandaag getraind: ${w!.minutes} min in Open Strength`)
+            : t('Not counted as a training day', 'Telt niet als trainingsdag')}
+        </span>
+        <button className="btn small-btn" onClick={() => void setTraining(ignored ? null : false)}>
+          {ignored ? t('Count it again', 'Toch meetellen') : t('Don’t count it', 'Niet meetellen')}
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="spread training-line">
       <span>

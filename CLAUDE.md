@@ -86,6 +86,10 @@ approach and adapt it. There is no shared package between the two repos; copying
   page load on the other app: render first, then add the linked data.
 - `/api/integration/v1/*` accepts only a bearer token (constant-time compare) and answers 404 when no token is
   configured. A session cookie is not enough.
+- Calls to Open Strength go through `services/strength.ts` only: 2 s timeout, 60 s cache, 15 s pause after a failure,
+  never throwing. Its workouts reach the target engine through `setWorkoutSource()`, nowhere else.
+- This app owns body weight: local weigh-ins are sent to Open Strength (`integration_outbox` while it is down);
+  weigh-ins from there are applied with `applyBodyWeight` and never sent back.
 
 ## Checks before a PR
 

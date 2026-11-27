@@ -2,7 +2,7 @@
 
 A personal, self-hosted calorie and nutrition tracker: a food diary with search, barcode scanning and recipes, daily targets from a deterministic engine, and a link with the strength training app [Open Strength](https://github.com/x-real-ip/open-strength). Mobile-first and fine in a desktop browser (sidebar from 900 px), dark theme, installable as a PWA. Runs in the homelab cluster with PostgreSQL (CloudNativePG) and is deployed through [`x-real-ip/gitops`](https://github.com/x-real-ip/gitops).
 
-> Work in progress. Sign-in, the food diary, your own products and recipes, Open Food Facts and NEVO, daily targets and progress work. The link with Open Strength and the AI features follow.
+> Work in progress. Sign-in, the food diary, your own products and recipes, Open Food Facts and NEVO, daily targets, progress and the link with Open Strength work. The AI features follow.
 
 ## Contents
 
@@ -27,6 +27,7 @@ A personal, self-hosted calorie and nutrition tracker: a food diary with search,
 - **Offline**: entries are saved on the phone first (IndexedDB) and sent when there is a connection; the diary shows what is not synced yet. What you ate keeps its values when the product changes later.
 - **Targets**: a daily energy and macro target from your profile (sex, age, height, weight, activity outside training, goal and pace). The Today screen shows what is left, protein, carbohydrates and fat against their targets, and whether it is a training day. *Training today* raises the target before you train. *How your target is built* explains every step with your numbers.
 - **Progress**: weigh-ins with a smoothed trend and the change per week, energy eaten against the target per day and per week, average macros and protein per kg, and your maintenance per week.
+- **Open Strength (optional)**: linked with [Open Strength](https://github.com/x-real-ip/open-strength), its workouts make a day a training day by themselves (a running workout already counts) and add their energy to the target; *Don't count it* is there for the odd day it shouldn't. This app keeps your body weight: weigh-ins here are sent there (and Open Strength's arrive here), so its starting weights use your current weight; on the first link its weigh-in history comes over once. The profile shows the link, Open Strength's training goal, a gentle note when goal and phase pull different ways, and a button to take age, height and weight from there. Open Strength in turn shows your nutrition phase, uses the last two weeks of eating as context for its coach and program design, and explains stalls with it, without ever changing its weights. Without the link, or when Open Strength is down, you mark training days yourself and nothing else changes.
 - **Data**: export everything as JSON (without NEVO data) and import such a file again (that replaces all data, NEVO stays); the diary as CSV. *Sources* under Profile shows where the data comes from, with the required attributions.
 
 ### How targets work
@@ -57,6 +58,23 @@ The importer finds the columns by their NEVO codes, whatever the delimiter or de
 **Open Food Facts**: product data from Open Food Facts is available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). Only the server talks to OFF, never your browser: with the User-Agent `open-nutrilog/<version> (+https://github.com/x-real-ip/open-nutrilog)`, only the fields the app uses, and at most 60 product lookups per minute (OFF allows 100). Every product is cached in Postgres and fetched again after 30 days. Your own products are never sent to OFF. *Search Open Food Facts* uses their search API, at most 8 times a minute (OFF allows 10).
 
 For fast local text search, `npm run import:off` streams the official CSV export (`OFF_DUMP_URL`, about 1.5 GB gzipped, 3.7M+ products) through gunzip, keeps the products sold in the Netherlands and Belgium (`OFF_IMPORT_COUNTRIES`) that have an energy value, and upserts them by barcode. It needs no disk and runs as a weekly CronJob in the cluster (suspended until you turn it on). The CSV export has one product name (the product's main language), which for Dutch and Belgian products is usually Dutch. `npm run import:off -- --file dump.csv.gz` imports a file you already have.
+
+## Linking with Open Strength
+
+Both apps talk over a small versioned HTTP API inside the cluster, with a separate token per direction:
+
+| Variable | Meaning |
+|---|---|
+| `INTEGRATION_TOKEN` | The token Open Strength sends to `/api/integration/v1/*` here. Without it those routes don't exist (404) |
+| `STRENGTH_URL`, `STRENGTH_TOKEN` | How this app reaches Open Strength, e.g. `http://open-strength.tools.svc.cluster.local`, and the token Open Strength accepts |
+
+`/api/integration/v1/*` accepts only `Authorization: Bearer <token>` (constant-time), never a session or proxy header:
+
+- `GET /days?from=YYYY-MM-DD&to=YYYY-MM-DD`: `[{ date, kcal, proteinG, carbsG, fatG, targetKcal, targetProteinG, isTrainingDay, complete }]`.
+- `GET /phase`: `{ phase, ratePctPerWeek, estimatedTdee, proteinGPerKg, avgProteinGPerKg14d, avgEnergyBalance14d, loggedDays14d }` over the last 14 complete days (`null` without a complete profile).
+- `GET /body-weights?from&to`, `PUT /body-weights/:date` (`{ weightKg }`), `DELETE /body-weights/:date`: weigh-ins from Open Strength; stored here and not sent back.
+
+From Open Strength this app reads `/workouts`, `/profile` and (once) `/body-weights`, and writes weigh-ins. Calls time out after 2 s, are cached for a minute, and after a failure the other app is left alone for 15 s; pages never wait for them (the PWA asks `/api/linked/strength` after rendering). Weigh-ins that can't be sent wait in `integration_outbox` and are retried every minute.
 
 ## Deployment
 
@@ -140,6 +158,7 @@ All settings are environment variables. For local use they are in `.env.example`
 | `PROXY_USER_HEADER`, `PROXY_EMAIL_HEADER`, `PROXY_GROUPS_HEADER`, `PROXY_LOGOUT_URL` | Proxy mode (the Authentik headers by default) |
 | `ALLOWED_USERS`, `ALLOWED_GROUPS` | Optional allowlists (comma-separated) for `oidc` and `proxy`. `ALLOWED_USERS` matches the username or email address |
 | `OFF_BASE_URL`, `OFF_TIMEOUT_MS`, `OFF_REFRESH_DAYS` | Open Food Facts API (`https://world.openfoodfacts.org`), request timeout (8000 ms) and how old a cached product may get before it is fetched again (30 days) |
+| `INTEGRATION_TOKEN`, `STRENGTH_URL`, `STRENGTH_TOKEN`, `STRENGTH_TIMEOUT_MS` | The optional link with Open Strength (see [Linking with Open Strength](#linking-with-open-strength)) |
 | `OFF_DUMP_URL`, `OFF_IMPORT_COUNTRIES` | The CSV export `npm run import:off` streams, and the `countries_tags` it keeps (`en:netherlands,en:belgium`) |
 
 ## Backup, export and migration
@@ -172,7 +191,8 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
     diary.ts              entries (PUT by a client id), nutrient snapshots, copying
     targets.ts            the target engine: pure functions, BMR, phases, training, macros, adaptive maintenance
     dayTargets.ts         gathers the engine's inputs (profile, weigh-ins, marks, intake) and builds progress
-    bodyWeight.ts         weigh-ins; the latest is the profile weight
+    bodyWeight.ts         weigh-ins; the latest is the profile weight; sent to Open Strength when linked
+    strength.ts           the link with Open Strength: workouts, profile, goal clash, weigh-in outbox
     dataExport.ts         JSON export and import (NEVO left out, references kept by code), diary CSV
   scripts/                import:nevo and import:off
   tests/                  node:test with embedded Postgres, a fake OFF and a local OIDC provider; synthetic fixtures only

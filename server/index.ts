@@ -2,6 +2,9 @@ import { buildApp } from './app.ts';
 import { initAuth } from './auth.ts';
 import { config } from './config.ts';
 import { closeDb, openDb } from './db.ts';
+import { syncProfile } from './services/bodyWeight.ts';
+import { today } from './services/days.ts';
+import { flushOutbox, importStrengthWeightsOnce, linked, startOutboxRetry } from './services/strength.ts';
 
 await openDb(undefined, { migrate: config.migrateOnStart });
 await initAuth();
@@ -10,6 +13,16 @@ const app = await buildApp({ logger: { level: config.logLevel } });
 app.log.info(`auth: ${config.auth.mode}; time zone: ${config.timeZone}`);
 
 await app.listen({ port: config.port, host: config.host });
+
+// The link with Open Strength: bring its weigh-ins over once, then send what is queued, now and every minute.
+if (linked()) {
+  app.log.info(`Open Strength: ${config.integration.strengthUrl}`);
+  void (async () => {
+    if ((await importStrengthWeightsOnce(today(config.timeZone))) > 0) await syncProfile();
+    await flushOutbox();
+  })().catch(() => {});
+  startOutboxRetry();
+}
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => {
