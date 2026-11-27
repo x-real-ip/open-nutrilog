@@ -1,0 +1,96 @@
+type P = { size?: number };
+
+const base = (size: number) => ({
+  width: size,
+  height: size,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+  'aria-hidden': true,
+});
+
+/** Today: a ring that fills as the day's budget is eaten. */
+export const IconToday = ({ size = 24 }: P) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="8" opacity={0.35} />
+    <path d="M12 4a8 8 0 0 1 7.6 10.5" />
+    <path d="M12 8.5v3.5l2.2 1.6" />
+  </svg>
+);
+
+/** Diary: a notebook with lines. */
+export const IconDiary = ({ size = 24 }: P) => (
+  <svg {...base(size)}>
+    <rect x="5" y="3.5" width="14" height="17" rx="2.5" />
+    <path d="M9 3.5v17M12 8.5h4M12 12h4" />
+  </svg>
+);
+
+export const IconProgress = ({ size = 24 }: P) => (
+  <svg {...base(size)}>
+    <path d="M4 19h16" />
+    <path d="M5 15l4.5-4.5 3.5 3L19 7" />
+    <path d="M15 7h4v4" />
+  </svg>
+);
+
+export const IconCoach = ({ size = 24 }: P) => (
+  <svg {...base(size)}>
+    <path d="M20 12.5a7.5 7.5 0 0 1-11 6.6L4 20l1-4.3A7.5 7.5 0 1 1 20 12.5z" />
+  </svg>
+);
+
+export const IconProfile = ({ size = 24 }: P) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="8.5" r="3.8" />
+    <path d="M4.5 20c1.3-3.6 4.2-5.3 7.5-5.3s6.2 1.7 7.5 5.3" />
+  </svg>
+);
+
+export const IconClose = ({ size = 22 }: P) => (
+  <svg {...base(size)}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+);
+
+export const IconCheck = ({ size = 22 }: P) => (
+  <svg {...base(size)} strokeWidth={2.6}>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);
+
+export const IconChevron = ({ size = 20 }: P) => (
+  <svg {...base(size)} className="chev">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
+
+export const IconBack = ({ size = 22 }: P) => (
+  <svg {...base(size)}>
+    <path d="M15 6l-6 6 6 6" />
+  </svg>
+);
+
+/** Favourite mark; `filled` when the exercise is a favourite. */
+export const IconStar = ({ size = 24, filled = false }: P & { filled?: boolean }) => (
+  <svg {...base(size)} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.7l5.9-.9z" />
+  </svg>
+);
+
+/** "Never use" mark. */
+export const IconBan = ({ size = 24 }: P) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M6 6l12 12" />
+  </svg>
+);
+
+export const IconPlus = ({ size = 22 }: P) => (
+  <svg {...base(size)}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
