@@ -312,6 +312,21 @@ export default function ProfilePage() {
 
 function DataSection() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const nevoRef = useRef<HTMLInputElement>(null);
+  const [nevoBusy, setNevoBusy] = useState(false);
+
+  const importNevo = async (file: File) => {
+    setNevoBusy(true);
+    try {
+      const { nevo } = await api.importNevo(file);
+      toast(t(`${nevo.count} NEVO foods imported (version ${nevo.version})`, `${nevo.count} NEVO-voedingsmiddelen geïmporteerd (versie ${nevo.version})`));
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setNevoBusy(false);
+      if (nevoRef.current) nevoRef.current.value = '';
+    }
+  };
 
   const importFile = async (file: File) => {
     if (!confirm(t('Importing replaces all current data. Continue?', 'Importeren vervangt alle huidige gegevens. Doorgaan?'))) return;
@@ -337,17 +352,37 @@ function DataSection() {
         <a className="list-row" href="/api/export/json" download>
           <div className="grow">
             <div className="title">{t('Export everything', 'Alles exporteren')}</div>
-            <div className="sub">{t('JSON file with all your data', 'JSON-bestand met al je gegevens')}</div>
+            <div className="sub">{t('JSON file with all your data (without NEVO data)', 'JSON-bestand met al je gegevens (zonder NEVO-gegevens)')}</div>
+          </div>
+        </a>
+        <a className="list-row" href="/api/export/diary.csv" download>
+          <div className="grow">
+            <div className="title">{t('Export the diary as CSV', 'Dagboek exporteren als CSV')}</div>
+            <div className="sub">{t('Every logged item, for spreadsheets', 'Alles wat je gelogd hebt, voor spreadsheets')}</div>
           </div>
         </a>
         <button className="list-row" onClick={() => fileRef.current?.click()}>
           <div className="grow">
             <div className="title">{t('Import from an export file', 'Importeren uit exportbestand')}</div>
-            <div className="sub">{t('Replaces the current data', 'Vervangt de huidige gegevens')}</div>
+            <div className="sub">{t('Replaces the current data; NEVO stays', 'Vervangt de huidige gegevens; NEVO blijft staan')}</div>
+          </div>
+        </button>
+        <button className="list-row" disabled={nevoBusy} onClick={() => nevoRef.current?.click()}>
+          <div className="grow">
+            <div className="title">{nevoBusy ? t('Importing NEVO…', 'NEVO importeren…') : t('Import NEVO file', 'NEVO-bestand importeren')}</div>
+            <div className="sub">{t('The CSV (or .zip) from NEVO-online, after accepting RIVM’s conditions', 'De CSV (of .zip) van NEVO-online, na het accepteren van de voorwaarden van het RIVM')}</div>
           </div>
         </button>
       </div>
       <input ref={fileRef} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importFile(e.target.files[0])} />
+      <input
+        ref={nevoRef}
+        type="file"
+        accept=".csv,.txt,.zip,text/csv,application/zip"
+        hidden
+        aria-label={t('NEVO file', 'NEVO-bestand')}
+        onChange={(e) => e.target.files?.[0] && void importNevo(e.target.files[0])}
+      />
     </section>
   );
 }
@@ -357,6 +392,19 @@ function AboutSection() {
   return (
     <section className="section stack">
       <h2>{t('About the app', 'Over de app')}</h2>
+      <div className="list">
+        <Link className="list-row" to="/recipes">
+          <div className="grow">
+            <div className="title">{t('My recipes', 'Mijn recepten')}</div>
+          </div>
+        </Link>
+        <Link className="list-row" to="/sources">
+          <div className="grow">
+            <div className="title">{t('Sources', 'Bronnen')}</div>
+            <div className="sub">{t('Open Food Facts, NEVO and your own data', 'Open Food Facts, NEVO en je eigen gegevens')}</div>
+          </div>
+        </Link>
+      </div>
       <div className="panel small muted stack" style={{ gap: 4 }}>
         {info.user && info.authMode !== 'none' && (
           <div>

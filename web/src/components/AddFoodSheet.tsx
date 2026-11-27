@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { Product, ProductLists } from '@shared/types.ts';
 import { api } from '../api.ts';
 import { sourceLabel } from '../food.ts';
@@ -47,26 +48,31 @@ export function ProductRow({ product, onPick }: { product: Product; onPick: (p: 
  */
 export function AddFoodSheet({
   open,
-  mealName,
+  title,
   onClose,
   onPick,
   onScan,
   onQuickAdd,
   onNewProduct,
+  allowRecipes = true,
 }: {
   open: boolean;
-  mealName: string;
+  title: string;
   onClose: () => void;
   onPick: (p: Product) => void;
-  onScan: () => void;
-  onQuickAdd: () => void;
-  onNewProduct: (name: string) => void;
+  /** Buttons are shown only for the handlers that are given (the recipe editor only picks products). */
+  onScan?: () => void;
+  onQuickAdd?: () => void;
+  onNewProduct?: (name: string) => void;
+  /** A recipe can't be an ingredient of another recipe. */
+  allowRecipes?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[] | null>(null);
   const [lists, setLists] = useState<ProductLists | null>(null);
   const [tab, setTab] = useState<Tab>('recent');
   const [error, setError] = useState<string | null>(null);
+  const [online, setOnline] = useState<'idle' | 'busy' | 'done'>('idle');
   const seq = useRef(0);
 
   useEffect(() => {
@@ -74,6 +80,7 @@ export function AddFoodSheet({
     setQuery('');
     setResults(null);
     setError(null);
+    setOnline('idle');
     api
       .productLists()
       .then((l) => {
@@ -87,6 +94,7 @@ export function AddFoodSheet({
   // Search as you type, a moment after the last key; answers to older queries are ignored.
   useEffect(() => {
     const q = query.trim();
+    setOnline('idle');
     if (!q) {
       setResults(null);
       return;
@@ -101,7 +109,25 @@ export function AddFoodSheet({
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  const shown = results ?? lists?.[tab] ?? [];
+  // Open Food Facts itself, only when asked: their search limit is low and the local data usually has it.
+  const searchOnline = async () => {
+    const q = query.trim();
+    setOnline('busy');
+    setError(null);
+    try {
+      const r = await api.searchOnline(q);
+      if (q === query.trim()) {
+        const known = new Set((results ?? []).map((p) => p.id));
+        setResults([...(results ?? []), ...r.products.filter((p) => !known.has(p.id))]);
+      }
+      setOnline('done');
+    } catch (e) {
+      setError((e as Error).message);
+      setOnline('idle');
+    }
+  };
+
+  const shown = (results ?? lists?.[tab] ?? []).filter((p) => allowRecipes || p.source !== 'recipe');
   const empty = results
     ? t('Nothing found. Add it as your own product?', 'Niets gevonden. Als eigen product toevoegen?')
     : {
@@ -112,9 +138,9 @@ export function AddFoodSheet({
       }[tab];
 
   return (
-    <Sheet open={open} onClose={onClose} label={t(`Add to ${mealName}`, `Toevoegen aan ${mealName}`)}>
+    <Sheet open={open} onClose={onClose} label={title}>
       <div className="stack">
-        <h2 style={{ margin: 0 }}>{t(`Add to ${mealName.toLowerCase()}`, `Toevoegen aan ${mealName.toLowerCase()}`)}</h2>
+        <h2 style={{ margin: 0 }}>{title}</h2>
         <input
           className="input"
           type="search"
@@ -124,17 +150,25 @@ export function AddFoodSheet({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <div className="grid-3">
-          <button className="btn" onClick={onScan}>
-            {t('Scan', 'Scannen')}
-          </button>
-          <button className="btn" onClick={onQuickAdd}>
-            {t('Quick add', 'Snel toevoegen')}
-          </button>
-          <button className="btn" onClick={() => onNewProduct(query.trim())}>
-            <IconPlus size={18} /> {t('New', 'Nieuw')}
-          </button>
-        </div>
+        {(onScan || onQuickAdd || onNewProduct) && (
+          <div className="grid-3">
+            {onScan && (
+              <button className="btn" onClick={onScan}>
+                {t('Scan', 'Scannen')}
+              </button>
+            )}
+            {onQuickAdd && (
+              <button className="btn" onClick={onQuickAdd}>
+                {t('Quick add', 'Snel toevoegen')}
+              </button>
+            )}
+            {onNewProduct && (
+              <button className="btn" onClick={() => onNewProduct(query.trim())}>
+                <IconPlus size={18} /> {t('New', 'Nieuw')}
+              </button>
+            )}
+          </div>
+        )}
 
         {!results && (
           <div className="chips" role="tablist">
@@ -155,6 +189,16 @@ export function AddFoodSheet({
           </div>
         ) : (
           (results || lists) && <p className="muted">{empty}</p>
+        )}
+        {results && results.length < 8 && online !== 'done' && (
+          <button className="btn block" disabled={online === 'busy'} onClick={() => void searchOnline()}>
+            {online === 'busy' ? t('Searching Open Food Facts…', 'Open Food Facts doorzoeken…') : t('Search Open Food Facts', 'Zoeken in Open Food Facts')}
+          </button>
+        )}
+        {tab === 'mine' && !results && allowRecipes && (
+          <Link className="btn block" to="/recipes/new" onClick={onClose}>
+            <IconPlus size={18} /> {t('New recipe', 'Nieuw recept')}
+          </Link>
         )}
         {tab === 'mine' && !results && lists && lists.hidden.length > 0 && (
           <>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { DiaryEntry, EntryInput, Meal, Product } from '@shared/types.ts';
 import { quantityOf, scale, type EntryUnit } from '@shared/nutrition.ts';
 import { api, newId, removeEntry, saveEntry } from '../api.ts';
-import { amountLabel, macroLine, parseNumber, previewEntry } from '../food.ts';
+import { amountLabel, macroLine, parseNumber, previewEntry, sourceNote } from '../food.ts';
 import { kcal, kj, num } from '../format.ts';
 import { t } from '../i18n.ts';
 import { SourceBadge } from './AddFoodSheet.tsx';
@@ -195,11 +196,16 @@ export function AmountSheet({
           {entry ? t('Save', 'Opslaan') : t('Add', 'Toevoegen')}
         </button>
         <div className="grid-2">
-          {product && (
-            <button className="btn" onClick={() => onEditProduct(product)}>
-              {product.source === 'custom' ? t('Edit product', 'Product bewerken') : t('Edit values', 'Waarden aanpassen')}
-            </button>
-          )}
+          {product &&
+            (product.source === 'recipe' ? (
+              <Link className="btn" to={`/recipes/${product.id}`} onClick={onClose}>
+                {t('Edit recipe', 'Recept bewerken')}
+              </Link>
+            ) : (
+              <button className="btn" onClick={() => onEditProduct(product)}>
+                {product.source === 'custom' ? t('Edit product', 'Product bewerken') : t('Edit values', 'Waarden aanpassen')}
+              </button>
+            ))}
           {entry && (
             <button className="btn danger" onClick={() => void remove()}>
               {t('Delete', 'Verwijderen')}
@@ -207,6 +213,11 @@ export function AmountSheet({
           )}
         </div>
         {entry && <p className="faint small" style={{ margin: 0 }}>{t(`Logged: ${amountLabel(entry, base)}`, `Gelogd: ${amountLabel(entry, base)}`)}</p>}
+        {product && sourceNote(product.source, product.sourceVersion) && (
+          <p className="faint small" style={{ margin: 0 }}>
+            {t('Source', 'Bron')}: {sourceNote(product.source, product.sourceVersion)}
+          </p>
+        )}
       </div>
     </Sheet>
   );

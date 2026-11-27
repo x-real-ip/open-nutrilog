@@ -8,6 +8,9 @@ import DiaryPage from './pages/DiaryPage.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
 import ProgressPage from './pages/ProgressPage.tsx';
+import RecipePage from './pages/RecipePage.tsx';
+import RecipesPage from './pages/RecipesPage.tsx';
+import SourcesPage from './pages/SourcesPage.tsx';
 import TargetsPage from './pages/TargetsPage.tsx';
 import TodayPage from './pages/TodayPage.tsx';
 
@@ -68,6 +71,9 @@ export default function App() {
               <Route path="/progress" element={<ProgressPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/targets" element={<TargetsPage />} />
+              <Route path="/recipes" element={<RecipesPage />} />
+              <Route path="/recipes/:id" element={<RecipePage />} />
+              <Route path="/sources" element={<SourcesPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

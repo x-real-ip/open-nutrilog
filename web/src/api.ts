@@ -12,6 +12,9 @@ import type {
   ProductPreference,
   Profile,
   ProgressResponse,
+  Recipe,
+  RecipeInput,
+  SourcesInfo,
   TargetResponse,
 } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
@@ -53,6 +56,10 @@ export const api = {
   saveProfile: (p: Omit<Profile, 'updatedAt'>) => request<{ profile: Profile }>('PUT', '/api/profile', p),
 
   search: (q: string) => request<{ products: Product[] }>('GET', `/api/products/search?q=${encodeURIComponent(q)}`),
+  searchOnline: (q: string) => request<{ products: Product[] }>('GET', `/api/products/search?q=${encodeURIComponent(q)}&online=1`),
+  recipe: (id: number) => request<{ recipe: Recipe }>('GET', `/api/recipes/${id}`),
+  saveRecipe: (id: number | null, r: RecipeInput) => request<{ recipe: Recipe }>(id ? 'PUT' : 'POST', id ? `/api/recipes/${id}` : '/api/recipes', r),
+  sources: () => request<SourcesInfo>('GET', '/api/sources'),
   productLists: () => request<ProductLists>('GET', '/api/products/lists'),
   barcode: (code: string) => request<{ product: Product }>('GET', `/api/products/barcode/${encodeURIComponent(code)}`),
   product: (id: number) => request<{ product: Product }>('GET', `/api/products/${id}`),
@@ -76,6 +83,23 @@ export const api = {
   progress: (days = 56) => request<ProgressResponse>('GET', `/api/progress?days=${days}`),
 
   importJson: (data: unknown) => request<{ ok: true }>('POST', '/api/import/json', data),
+  /** The NEVO file as downloaded (CSV or zip), sent as is. */
+  importNevo: async (file: File) => {
+    let res: Response;
+    try {
+      res = await fetch(`/api/nevo/import?filename=${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: file,
+      });
+    } catch {
+      throw new ApiError(t('No connection to the server', 'Geen verbinding met de server'), 0);
+    }
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new ApiError(data?.error ?? t(`Request failed (${res.status})`, `Verzoek mislukt (${res.status})`), res.status);
+    return data as { nevo: { version: string; count: number } };
+  },
 };
 
 // ---------------------------------------------------------------------------

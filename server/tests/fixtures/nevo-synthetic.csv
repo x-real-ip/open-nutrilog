@@ -1,0 +1,6 @@
+Voedingsmiddelgroep|Food group|NEVO-code|Voedingsmiddelnaam/Dutch food name|Engelse naam/Food name|Synoniem|Hoeveelheid/Quantity|Opmerking|ENERCJ (kJ)|ENERCC (kcal)|WATER (g)|PROT (g)|FAT (g)|FASAT (g)|CHO (g)|SUGAR (g)|FIBT (g)|NA (mg)|K (mg)|VITC (mg)
+Fruit|Fruit|9001|Testappel|Test apple||per 100g||218|52|85,6|0,3|0,2|0,03|12,0|10,4|2,0|1|107|5
+Graanproducten|Cereal products|9002|Testrijst gekookt|Test rice boiled||per 100g||548|131|68,0|2,7|0,3|0,1|28,0|0,1|0,4|<1|30|
+Brood|Bread|9003|Testbrood volkoren|Test wholemeal bread||per 100g||1000|238|38,0|10,5|3,3|0,6|39,0|2,8|7,1|450|230|0
+Zuivel|Dairy|9004|Testkaas belegen|Test cheese matured||per 100g||1500|360|40,0|25,0|28,0|17,0|0|0|0|800|90|0
+Dranken|Drinks|9005|Testthee zonder suiker|Test tea without sugar||per 100g||4|1|99,7|0,1|0|0|0,2|0|0|1|20|

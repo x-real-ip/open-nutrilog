@@ -63,6 +63,10 @@ approach and adapt it. There is no shared package between the two repos; copying
   throttled, and cached in Postgres. Our own products are never sent to OFF.
 - Local edits of a NEVO or OFF product are stored as an override that links to the source; source rows are never
   changed by hand.
+- Exports never contain NEVO rows (only `nevoRefs`: id → NEVO code); the import keeps the NEVO already present and
+  maps references through the code. Test fixtures are synthetic (`server/tests/fixtures/README.md`).
+- A recipe is a product with source `recipe`, worked out from `recipe_ingredients` (`services/recipes.ts`); every change
+  to a product calls the recipes hook so recipes follow. A recipe can't be an ingredient of a recipe.
 
 ## Targets
 

@@ -2,7 +2,7 @@
 
 A personal, self-hosted calorie and nutrition tracker: a food diary with search, barcode scanning and recipes, daily targets from a deterministic engine, and a link with the strength training app [Open Strength](https://github.com/x-real-ip/open-strength). Mobile-first and fine in a desktop browser (sidebar from 900 px), dark theme, installable as a PWA. Runs in the homelab cluster with PostgreSQL (CloudNativePG) and is deployed through [`x-real-ip/gitops`](https://github.com/x-real-ip/gitops).
 
-> Work in progress. Sign-in, the food diary, your own products, Open Food Facts barcodes, daily targets and progress work. NEVO and the OFF text search, recipes, the link with Open Strength and the AI features follow.
+> Work in progress. Sign-in, the food diary, your own products and recipes, Open Food Facts and NEVO, daily targets and progress work. The link with Open Strength and the AI features follow.
 
 ## Contents
 
@@ -21,11 +21,13 @@ A personal, self-hosted calorie and nutrition tracker: a food diary with search,
 - **Diary**: a day per page with breakfast, lunch, dinner and snacks. Rename or hide a meal, or add your own. Swipe through days with the arrows or tap the date to pick one. Each entry shows its energy; the day and every meal show their total, with protein, carbohydrates and fat.
 - **Adding food**: search, or pick from *Recent*, *Frequent*, *Favourites* and *My foods*. Amounts in grams or ml, or in servings ("2 × 1 slice"), with energy and macros updating as you type. *Quick add* logs only energy, or energy plus macros, without a product. Copy a meal from the day before, a meal to today, or a whole day.
 - **Barcodes**: scan with the camera (the browser's own barcode reader where it has one, such as Chrome on Android or Vanadium on GrapheneOS, otherwise a built-in WebAssembly reader) or type the number. Your own products with that barcode come first; otherwise the server looks it up at [Open Food Facts](https://world.openfoodfacts.org) and keeps a copy. An unknown barcode opens a new product with the barcode filled in.
+- **Search**: your own products, recipes, favourites and what you ate lately come first, then generic foods from NEVO, then Open Food Facts; each result shows its source. Typos are forgiven ("yoghrt"). When the local search doesn't have it, *Search Open Food Facts* asks OFF itself.
+- **Recipes**: ingredients from any source, the weight after cooking and the number of portions. Log a recipe as portions or in grams. When an ingredient changes, the recipe follows; what you already logged doesn't.
 - **Your own products**: values per 100 g or 100 ml, optional servings and barcode. Editing a product from Open Food Facts saves your own version; the original stays as it is, and deleting your version brings it back. Star a product as a favourite, or hide it from search and lists.
 - **Offline**: entries are saved on the phone first (IndexedDB) and sent when there is a connection; the diary shows what is not synced yet. What you ate keeps its values when the product changes later.
 - **Targets**: a daily energy and macro target from your profile (sex, age, height, weight, activity outside training, goal and pace). The Today screen shows what is left, protein, carbohydrates and fat against their targets, and whether it is a training day. *Training today* raises the target before you train. *How your target is built* explains every step with your numbers.
 - **Progress**: weigh-ins with a smoothed trend and the change per week, energy eaten against the target per day and per week, average macros and protein per kg, and your maintenance per week.
-- **Data**: export everything as JSON and import such a file again (that replaces all data).
+- **Data**: export everything as JSON (without NEVO data) and import such a file again (that replaces all data, NEVO stays); the diary as CSV. *Sources* under Profile shows where the data comes from, with the required attributions.
 
 ### How targets work
 
@@ -41,9 +43,20 @@ Targets are **never set by the AI**. They come from a deterministic engine (`ser
 
 Spec example (a unit test): a man of 80 kg, 180 cm, 40 years, activity 1.4, cutting 0.5 %/week has BMR 1730, maintenance 2422, −440 for the cut, so 1982 kcal on a rest day. A 45-minute workout adds `(5 − 1) × 80 × 0.75 = 240`, so 2222 kcal on a training day. Protein 2.0 g/kg = 160 g.
 
-### Open Food Facts
+### Food data
 
-Product data from Open Food Facts is available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). Only the server talks to OFF, never your browser: with the User-Agent `open-nutrilog/<version> (+https://github.com/x-real-ip/open-nutrilog)`, only the fields the app uses, and at most 60 product lookups per minute (OFF allows 100). Every product is cached in Postgres and fetched again after 30 days. Your own products are never sent to OFF.
+**NEVO** (RIVM, the Dutch food composition database) gives generic Dutch foods with Dutch and English names. It is free but not open data: you get it only after accepting RIVM's conditions, and it may only be used unchanged with a source reference. So it is **never in this repository or the image**. Download it from [NEVO-online](https://www.rivm.nl/en/dutch-food-composition-database) and import the CSV (or the .zip it comes in) under Profile → Data → *Import NEVO file*, or on the server:
+
+```bash
+npm run import:nevo -- NEVO2025_9.0.csv            # the version comes from the file name
+npm run import:nevo -- foods.csv --version 2025/9.0
+```
+
+The importer finds the columns by their NEVO codes, whatever the delimiter or decimal mark. NEVO rows are read-only; your changes are stored as your own version. Importing a newer version updates the foods by NEVO code. The app shows "Based on data from NEVO-online version …, RIVM, Bilthoven" (or the Dutch text) on Sources. An export contains no NEVO data, only the NEVO codes your entries refer to; importing it into an app with NEVO points them back at the right foods.
+
+**Open Food Facts**: product data from Open Food Facts is available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). Only the server talks to OFF, never your browser: with the User-Agent `open-nutrilog/<version> (+https://github.com/x-real-ip/open-nutrilog)`, only the fields the app uses, and at most 60 product lookups per minute (OFF allows 100). Every product is cached in Postgres and fetched again after 30 days. Your own products are never sent to OFF. *Search Open Food Facts* uses their search API, at most 8 times a minute (OFF allows 10).
+
+For fast local text search, `npm run import:off` streams the official CSV export (`OFF_DUMP_URL`, about 1.5 GB gzipped, 3.7M+ products) through gunzip, keeps the products sold in the Netherlands and Belgium (`OFF_IMPORT_COUNTRIES`) that have an energy value, and upserts them by barcode. It needs no disk and runs as a weekly CronJob in the cluster (suspended until you turn it on). The CSV export has one product name (the product's main language), which for Dutch and Belgian products is usually Dutch. `npm run import:off -- --file dump.csv.gz` imports a file you already have.
 
 ## Deployment
 
@@ -97,6 +110,8 @@ npm test                     # starts a temporary embedded Postgres per test fil
 npm run test:e2e             # browser tests (Playwright); needs E2E_DATABASE_URL and npm run build
 npm run typecheck            # server and PWA
 npm run build                # builds the PWA into web/dist
+npm run import:nevo -- <file>  # import the NEVO file you downloaded (CSV or zip)
+npm run import:off           # stream the Dutch/Belgian part of the Open Food Facts dump
 ```
 
 `npm test` needs no running database. `npm run test:e2e` runs the main flow in English and Dutch, on a phone and a desktop viewport, in Chromium; it starts the app itself, wipes the database in `E2E_DATABASE_URL` before every test, and runs in CI before the image is built. Install the browser once with `npx playwright install chromium`. To use an existing test database, set `TEST_DATABASE_URL`. Note: its `public` schema is wiped.
@@ -125,11 +140,12 @@ All settings are environment variables. For local use they are in `.env.example`
 | `PROXY_USER_HEADER`, `PROXY_EMAIL_HEADER`, `PROXY_GROUPS_HEADER`, `PROXY_LOGOUT_URL` | Proxy mode (the Authentik headers by default) |
 | `ALLOWED_USERS`, `ALLOWED_GROUPS` | Optional allowlists (comma-separated) for `oidc` and `proxy`. `ALLOWED_USERS` matches the username or email address |
 | `OFF_BASE_URL`, `OFF_TIMEOUT_MS`, `OFF_REFRESH_DAYS` | Open Food Facts API (`https://world.openfoodfacts.org`), request timeout (8000 ms) and how old a cached product may get before it is fetched again (30 days) |
+| `OFF_DUMP_URL`, `OFF_IMPORT_COUNTRIES` | The CSV export `npm run import:off` streams, and the `countries_tags` it keeps (`en:netherlands,en:belgium`) |
 
 ## Backup, export and migration
 
 - **Database**: in the cluster Postgres runs as CloudNativePG cluster `open-nutrilog-db` on a TrueNAS volume. A manual dump: `kubectl -n tools exec open-nutrilog-db-1 -- pg_dump -Fc -U postgres open_nutrilog > open-nutrilog.dump`.
-- **Exports in the app** (Profile → Data): JSON with everything. You import a JSON export with *Import from an export file*. That replaces all data.
+- **Exports in the app** (Profile → Data): JSON with everything except NEVO data, and the diary as CSV. You import a JSON export with *Import from an export file*. That replaces all data; NEVO, which you imported yourself, stays.
 
 ## Architecture
 
@@ -146,15 +162,20 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
     days.ts               what "a day" is, in the profile's time zone
     profile.ts            the single user's profile
     products.ts           search, lists, your own products, local edits, barcodes and the OFF cache
-    off.ts                Open Food Facts: mapping, User-Agent, throttled lookups
+    off.ts                Open Food Facts: mapping, User-Agent, throttled lookups and search
+    offDump.ts            streamed import of the NL/BE part of the OFF dump
+    nevo.ts               NEVO: parsing the NEVO-online CSV (or zip), import, attribution
+    zip.ts                just enough zip to read the NEVO download
+    recipes.ts            recipes: a product worked out from its ingredients
     throttle.ts           token bucket for outside APIs
     meals.ts              meals of a day
     diary.ts              entries (PUT by a client id), nutrient snapshots, copying
     targets.ts            the target engine: pure functions, BMR, phases, training, macros, adaptive maintenance
     dayTargets.ts         gathers the engine's inputs (profile, weigh-ins, marks, intake) and builds progress
     bodyWeight.ts         weigh-ins; the latest is the profile weight
-    dataExport.ts         JSON export and import
-  tests/                  node:test with embedded Postgres and a local OIDC provider
+    dataExport.ts         JSON export and import (NEVO left out, references kept by code), diary CSV
+  scripts/                import:nevo and import:off
+  tests/                  node:test with embedded Postgres, a fake OFF and a local OIDC provider; synthetic fixtures only
 shared/types.ts           types shared by server and frontend
 shared/nutrition.ts       unit/serving conversion and totals, the same on server and phone
 web/                      React + Vite PWA

@@ -108,6 +108,10 @@ export const config = {
     timeoutMs: num('OFF_TIMEOUT_MS', 8000),
     /** A cached product is fetched again after this many days. */
     refreshDays: num('OFF_REFRESH_DAYS', 30),
+    /** The CSV export that `npm run import:off` streams. */
+    dumpUrl: str('OFF_DUMP_URL') ?? 'https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz',
+    /** countries_tags to import from the dump. */
+    importCountries: str('OFF_IMPORT_COUNTRIES') ? list('OFF_IMPORT_COUNTRIES') : ['en:netherlands', 'en:belgium'],
   },
 
   /**
