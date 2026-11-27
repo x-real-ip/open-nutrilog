@@ -1,0 +1,16 @@
+{
+  "code": "8710400000031",
+  "lang": "fr",
+  "product_name": "Barre céréales",
+  "brands": "",
+  "serving_size": "1 barre (25 g)",
+  "serving_quantity": "25",
+  "nutrition_data_per": "serving",
+  "nutriments": {
+    "energy-kcal_serving": 100,
+    "proteins_serving": 2,
+    "carbohydrates_serving": 15,
+    "fat_serving": 3.5,
+    "salt_serving": 0.05
+  }
+}
