@@ -6,6 +6,7 @@ import { config } from '../config.ts';
 import { langOf, UserError } from '../i18n.ts';
 import { databaseReady } from '../db.ts';
 import { aiConfigured, getAiSettings } from '../services/aiSettings.ts';
+import { picnicStatus } from '../services/picnic.ts';
 import { noteProfileWeight } from '../services/bodyWeight.ts';
 import { today } from '../services/days.ts';
 import { getProfile, saveProfile, timeZoneOf } from '../services/profile.ts';
@@ -23,6 +24,7 @@ export async function coreRoutes(app: FastifyInstance) {
     const timeZone = timeZoneOf(profile);
     return {
       aiConfigured: aiConfigured(),
+      picnicLinked: (await picnicStatus()).linked,
       aiProvider: getAiSettings().provider,
       aiModel: getAiSettings().model,
       authMode: config.auth.mode,

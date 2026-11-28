@@ -23,7 +23,17 @@ type SheetState =
   | { kind: 'add'; mealId: number }
   | { kind: 'amount'; mealId: number; product: Product | null; entry: DiaryEntry | null }
   | { kind: 'quick'; mealId: number; entry: DiaryEntry | null }
-  | { kind: 'product'; mealId: number; product: Product | null; name?: string; barcode?: string | null; entry: DiaryEntry | null }
+  | {
+      kind: 'product';
+      mealId: number;
+      product: Product | null;
+      name?: string;
+      barcode?: string | null;
+      brand?: string;
+      unit?: 'g' | 'ml';
+      hint?: { title: string; text: string | null } | null;
+      entry: DiaryEntry | null;
+    }
   | { kind: 'scan'; mealId: number }
   | { kind: 'meal'; meal: Meal }
   | { kind: 'ai'; mode: 'text' | 'photo'; mealId: number }
@@ -201,6 +211,19 @@ export default function DiaryPage() {
         onScan={() => sheet?.kind === 'add' && setSheet({ kind: 'scan', mealId: sheet.mealId })}
         onQuickAdd={() => sheet?.kind === 'add' && setSheet({ kind: 'quick', mealId: sheet.mealId, entry: null })}
         onNewProduct={(name) => sheet?.kind === 'add' && setSheet({ kind: 'product', mealId: sheet.mealId, product: null, name, entry: null })}
+        onPicnicDraft={(d) =>
+          sheet?.kind === 'add' &&
+          setSheet({
+            kind: 'product',
+            mealId: sheet.mealId,
+            product: null,
+            name: d.name,
+            brand: d.brand,
+            unit: d.unit,
+            hint: { title: t('Picnic says', 'Volgens Picnic'), text: d.nutritionText },
+            entry: null,
+          })
+        }
         onDescribe={info.aiConfigured ? () => sheet?.kind === 'add' && setSheet({ kind: 'ai', mode: 'text', mealId: sheet.mealId }) : undefined}
         onPhoto={info.aiConfigured ? () => sheet?.kind === 'add' && setSheet({ kind: 'ai', mode: 'photo', mealId: sheet.mealId }) : undefined}
       />
@@ -226,6 +249,9 @@ export default function DiaryPage() {
         product={sheet?.kind === 'product' ? sheet.product : null}
         initialName={sheet?.kind === 'product' ? sheet.name : undefined}
         initialBarcode={sheet?.kind === 'product' ? sheet.barcode : undefined}
+        initialBrand={sheet?.kind === 'product' ? sheet.brand : undefined}
+        initialUnit={sheet?.kind === 'product' ? sheet.unit : undefined}
+        hint={sheet?.kind === 'product' ? sheet.hint : undefined}
         onClose={() => setSheet(null)}
         onSaved={(product) => sheet?.kind === 'product' && setSheet({ kind: 'amount', mealId: sheet.mealId, product, entry: sheet.entry })}
       />

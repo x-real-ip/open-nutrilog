@@ -211,6 +211,11 @@ const migrations: string[] = [
     created_at timestamptz NOT NULL DEFAULT now()
   );
   `,
+  // 7: products read from Picnic (when you link your Picnic account), like the Open Food Facts cache.
+  `
+  ALTER TABLE products DROP CONSTRAINT products_source_check;
+  ALTER TABLE products ADD CONSTRAINT products_source_check CHECK (source IN ('off', 'nevo', 'custom', 'recipe', 'picnic'));
+  `,
 ];
 
 let pool: pg.Pool | null = null;

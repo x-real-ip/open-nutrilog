@@ -1,21 +1,68 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Product, ProductLists } from '@shared/types.ts';
+import type { PicnicArticle, PicnicImport, Product, ProductLists } from '@shared/types.ts';
+import { useInfo } from '../App.tsx';
 import { api } from '../api.ts';
 import { sourceLabel } from '../food.ts';
 import { kcal } from '../format.ts';
 import { t } from '../i18n.ts';
 import { IconPlus, IconStar } from './Icons.tsx';
-import { Sheet } from './ui.tsx';
+import { Sheet, toast } from './ui.tsx';
 
-type Tab = 'recent' | 'frequent' | 'favorites' | 'mine';
+type Tab = 'recent' | 'frequent' | 'favorites' | 'mine' | 'picnic';
 
-const TABS = (): { id: Tab; label: string }[] => [
+const TABS = (picnic: boolean): { id: Tab; label: string }[] => [
   { id: 'recent', label: t('Recent', 'Recent') },
   { id: 'frequent', label: t('Frequent', 'Vaak') },
   { id: 'favorites', label: t('Favourites', 'Favorieten') },
   { id: 'mine', label: t('My foods', 'Mijn producten') },
+  ...(picnic ? [{ id: 'picnic' as Tab, label: 'Picnic' }] : []),
 ];
+
+/** Your recent Picnic deliveries (when linked): tapping one reads it into a product, or a draft to complete. */
+function PicnicList({ onPick, onDraft }: { onPick: (p: Product) => void; onDraft?: (d: NonNullable<PicnicImport['draft']>) => void }) {
+  const [articles, setArticles] = useState<PicnicArticle[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    api
+      .picnicArticles()
+      .then((r) => setArticles(r.articles))
+      .catch((e: Error) => setError(e.message));
+  }, []);
+  const pick = async (a: PicnicArticle) => {
+    setBusy(a.id);
+    try {
+      const r = await api.picnicImport(a.id);
+      if (r.product) onPick(r.product);
+      else if (onDraft) onDraft(r.draft);
+      else toast(t('Picnic shows no nutrition values for this product.', 'Picnic toont geen voedingswaarden voor dit product.'));
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  if (error) return <p className="error">{error}</p>;
+  if (!articles) return <p className="muted">{t('Loading your Picnic deliveries…', 'Je Picnic-bezorgingen laden…')}</p>;
+  if (!articles.length) return <p className="muted">{t('No delivered products found.', 'Geen bezorgde producten gevonden.')}</p>;
+  return (
+    <div className="list" onTouchStart={blurField}>
+      {articles.map((a) => (
+        <button key={a.id} className="list-row" disabled={busy !== null} onClick={() => void pick(a)}>
+          <div className="grow">
+            <div className="title">{a.name}</div>
+            <div className="sub">
+              {[a.unitQuantity, a.times > 1 ? t(`in ${a.times} deliveries`, `in ${a.times} bezorgingen`) : null].filter(Boolean).join(' · ')}{' '}
+              {a.productId && <span className="badge picnic">Picnic</span>}
+            </div>
+          </div>
+          {busy === a.id && <span className="spinner small-spinner" aria-label={t('Reading', 'Lezen')} />}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** Closes the on-screen keyboard by leaving the field that has it. */
 export function blurField() {
@@ -62,6 +109,7 @@ export function AddFoodSheet({
   onNewProduct,
   onDescribe,
   onPhoto,
+  onPicnicDraft,
   allowRecipes = true,
 }: {
   open: boolean;
@@ -75,6 +123,8 @@ export function AddFoodSheet({
   /** Only when AI is on: describe or photograph the meal. */
   onDescribe?: () => void;
   onPhoto?: () => void;
+  /** A Picnic product without readable nutrition values: complete it as your own product. */
+  onPicnicDraft?: (d: NonNullable<PicnicImport['draft']>) => void;
   /** A recipe can't be an ingredient of another recipe. */
   allowRecipes?: boolean;
 }) {
@@ -148,7 +198,8 @@ export function AddFoodSheet({
     }
   };
 
-  const shown = (results ?? lists?.[tab] ?? []).filter((p) => allowRecipes || p.source !== 'recipe');
+  const info = useInfo();
+  const shown = (results ?? (tab === 'picnic' ? [] : (lists?.[tab] ?? []))).filter((p) => allowRecipes || p.source !== 'recipe');
   const empty = results
     ? online === 'busy'
       ? ''
@@ -158,6 +209,7 @@ export function AddFoodSheet({
         frequent: t('What you log more than once shows up here.', 'Wat je vaker logt, verschijnt hier.'),
         favorites: t('Tap the star on a product to make it a favourite.', 'Tik op de ster bij een product om het favoriet te maken.'),
         mine: t('Products you add yourself show up here.', 'Producten die je zelf toevoegt, verschijnen hier.'),
+        picnic: '',
       }[tab];
 
   return (
@@ -212,7 +264,7 @@ export function AddFoodSheet({
 
         {!results && (
           <div className="chips" role="tablist">
-            {TABS().map((x) => (
+            {TABS(info.picnicLinked).map((x) => (
               <button key={x.id} role="tab" aria-pressed={tab === x.id} aria-selected={tab === x.id} onClick={() => setTab(x.id)}>
                 {x.label}
               </button>
@@ -221,7 +273,8 @@ export function AddFoodSheet({
         )}
 
         {error && <p className="error">{error}</p>}
-        {shown.length > 0 ? (
+        {tab === 'picnic' && !results && <PicnicList onPick={onPick} onDraft={onPicnicDraft} />}
+        {tab === 'picnic' && !results ? null : shown.length > 0 ? (
           // Scrolling through the results puts the keyboard away, like other apps do.
           <div className="list" onTouchStart={blurField}>
             {shown.map((p) => (

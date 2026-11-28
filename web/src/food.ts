@@ -42,6 +42,8 @@ export function sourceLabel(source: ProductSource | null): string {
       return t('Mine', 'Eigen');
     case 'recipe':
       return t('Recipe', 'Recept');
+    case 'picnic':
+      return 'Picnic';
     default:
       return '';
   }
@@ -66,5 +68,6 @@ export function parseNumber(text: string): number | null {
 export function sourceNote(source: ProductSource | null, version: string | null): string {
   if (source === 'nevo') return `NEVO-online${version ? ` ${version}` : ''}, RIVM`;
   if (source === 'off') return t('Open Food Facts (ODbL)', 'Open Food Facts (ODbL)');
+  if (source === 'picnic') return t('Picnic (read from its product page)', 'Picnic (gelezen van de productpagina)');
   return '';
 }

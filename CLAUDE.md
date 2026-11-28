@@ -92,6 +92,15 @@ approach and adapt it. There is no shared package between the two repos; copying
   user confirms. Photos are kept only when `storePhotos` is on.
 - The e2e tests run against `e2e/fake-ai.mjs`, never a real provider.
 
+## Picnic (optional, experimental)
+
+- Picnic has no official API; `services/picnic.ts` uses the unofficial `picnic-api` package behind the small `PicnicApi`
+  interface, so tests run against a fake (`setPicnicApi`) and never a real account.
+- Only reading (deliveries, product pages). Never store the password; keep only Picnic's auth key in settings key
+  `picnic`, never send it to the browser, never export it. An auth failure unlinks with a clear message.
+- Nutrition values come from the free text of Picnic's "Voedingswaarde" section (`parsePicnicNutrition`): add a test
+  case for every new format seen. Without values the user gets a draft, never guessed numbers.
+
 ## Integration with Open Strength
 
 - Both apps work fully when the other is down or not configured; linked features degrade quietly. Never block a

@@ -32,6 +32,9 @@ export function ProductForm({
   product,
   initialName,
   initialBarcode,
+  initialBrand,
+  initialUnit,
+  hint,
   onClose,
   onSaved,
 }: {
@@ -40,6 +43,10 @@ export function ProductForm({
   product: Product | null;
   initialName?: string;
   initialBarcode?: string | null;
+  initialBrand?: string;
+  initialUnit?: 'g' | 'ml';
+  /** Text to copy values from, e.g. Picnic's "Voedingswaarde" section, shown above the values. */
+  hint?: { title: string; text: string | null } | null;
   onClose: () => void;
   onSaved: (p: Product) => void;
 }) {
@@ -58,13 +65,13 @@ export function ProductForm({
     if (!open) return;
     setName(product ? (nl ? product.nameNl : product.nameEn) || product.name : (initialName ?? ''));
     setOtherName(product ? ((nl ? product.nameEn : product.nameNl) === product.name ? '' : (nl ? product.nameEn : product.nameNl)) : '');
-    setBrand(product?.brand ?? '');
+    setBrand(product?.brand ?? initialBrand ?? '');
     setBarcode(product?.barcode ?? initialBarcode ?? '');
-    setUnit(product?.unit ?? 'g');
+    setUnit(product?.unit ?? initialUnit ?? 'g');
     setValues(toTexts(product?.per100 ?? null));
     setServings((product?.servings ?? []).map((s) => ({ label: s.label, grams: num(s.grams, 1) })));
     setError(null);
-  }, [open, product, initialName, initialBarcode, nl]);
+  }, [open, product, initialName, initialBarcode, initialBrand, initialUnit, nl]);
 
   const parsed = Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, parseNumber(values[k])])) as Record<NutrientKey, number | null>;
   const kcalOk = parsed.kcal !== null && parsed.kcal >= 0 && parsed.kcal <= 1000;
@@ -152,6 +159,12 @@ export function ProductForm({
           </label>
         </div>
 
+        {hint && (
+          <div className="panel small stack hint-text" style={{ gap: 6 }}>
+            <b>{hint.title}</b>
+            {hint.text ? <pre>{hint.text}</pre> : <span className="muted">{t('No nutrition values given; check the pack.', 'Geen voedingswaarden opgegeven; kijk op de verpakking.')}</span>}
+          </div>
+        )}
         <div className="field">
           <span>{t('Values per', 'Waarden per')}</span>
           <div className="seg">

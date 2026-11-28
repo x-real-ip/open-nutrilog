@@ -12,6 +12,9 @@ import type {
   LinkedStrength,
   MealProposal,
   PhaseSuggestion,
+  PicnicArticle,
+  PicnicImport,
+  PicnicStatus,
   Meal,
   Product,
   ProductInput,
@@ -100,6 +103,14 @@ export const api = {
   previewTarget: (s: PhaseSuggestion) => request<TargetResponse>('POST', '/api/targets/preview', s),
   mealFromText: (text: string) => request<MealProposal>('POST', '/api/ai/meal/text', { text }),
   mealFromPhoto: (image: string, note: string) => request<MealProposal>('POST', '/api/ai/meal/photo', { image, note }),
+
+  picnic: () => request<PicnicStatus>('GET', '/api/picnic'),
+  picnicLogin: (email: string, password: string) => request<PicnicStatus>('POST', '/api/picnic/login', { email, password }),
+  picnicSend2fa: (channel: 'SMS' | 'EMAIL') => request<{ ok: true }>('POST', '/api/picnic/2fa/send', { channel }),
+  picnicVerify2fa: (code: string) => request<PicnicStatus>('POST', '/api/picnic/2fa/verify', { code }),
+  picnicUnlink: () => request<PicnicStatus>('DELETE', '/api/picnic'),
+  picnicArticles: () => request<{ articles: PicnicArticle[] }>('GET', '/api/picnic/articles'),
+  picnicImport: (id: string) => request<PicnicImport>('POST', `/api/picnic/articles/${encodeURIComponent(id)}/import`),
 
   importJson: (data: unknown) => request<{ ok: true }>('POST', '/api/import/json', data),
   /** The NEVO file as downloaded (CSV or zip), sent as is. */

@@ -37,6 +37,8 @@ for (const lang of ['en', 'nl'] as const) {
     await expect(page.getByRole('heading', { name: T('Profile', 'Profiel'), exact: true })).toBeVisible();
     // Without Open Strength configured the profile says so; everything else works on its own.
     await expect(page.getByRole('region', { name: 'Open Strength' })).toContainText(T('Not linked', 'Niet gekoppeld'));
+    // Picnic is optional: a form to link it, nothing more.
+    await expect(page.getByRole('region', { name: 'Picnic' }).getByRole('button', { name: T('Link Picnic', 'Picnic koppelen') })).toBeVisible();
 
     // The menu: on a phone the bottom bar, on a desktop the sidebar; same links.
     const menu = page.getByRole('navigation', { name: T('Main menu', 'Hoofdmenu') });
