@@ -12,6 +12,7 @@ import ProfilePage from './pages/ProfilePage.tsx';
 import ProgressPage from './pages/ProgressPage.tsx';
 import RecipePage from './pages/RecipePage.tsx';
 import RecipesPage from './pages/RecipesPage.tsx';
+import SavedMealsPage from './pages/SavedMealsPage.tsx';
 import SourcesPage from './pages/SourcesPage.tsx';
 import TargetsPage from './pages/TargetsPage.tsx';
 import TodayPage from './pages/TodayPage.tsx';
@@ -75,6 +76,7 @@ export default function App() {
               <Route path="/targets" element={<TargetsPage />} />
               <Route path="/recipes" element={<RecipesPage />} />
               <Route path="/recipes/:id" element={<RecipePage />} />
+              <Route path="/saved-meals" element={<SavedMealsPage />} />
               <Route path="/sources" element={<SourcesPage />} />
               <Route path="/coach" element={<CoachPage />} />
               <Route path="/ai" element={<AiPage />} />

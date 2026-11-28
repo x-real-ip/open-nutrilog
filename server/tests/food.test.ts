@@ -246,6 +246,65 @@ test('move: entries to another meal and day, values unchanged even after the pro
   assert.equal((await call('POST', '/api/diary/move', { entryIds: ['nope'], mealId: 2 })).status, 400);
 });
 
+test('saved meals: made from entries, values follow the product, a deleted product becomes a quick add', async () => {
+  const oats = await product('Oats', { per100: per100(370, 13, 60, 7), servings: [{ label: 'bowl', grams: 50 }] });
+  const milk = await product('Milk', { per100: per100(50, 3.5, 5, 1.5) });
+  const a = await log(oats.id, { amount: 1, unit: 'serving', servingLabel: 'bowl', mealId: 1 });
+  const b = await log(milk.id, { amount: 200, mealId: 1 });
+  const q = await log(null, { unit: 'kcal', amount: 90, quick: { name: 'Coffee', kcal: 90, protein: 3, carbs: null, fat: null }, mealId: 1 });
+
+  const created = await call('POST', '/api/saved-meals', { name: 'My breakfast', entryIds: [q.id, b.id, a.id] });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const meal = created.body.savedMeal;
+  assert.equal(meal.name, 'My breakfast');
+  assert.deepEqual(
+    meal.items.map((i: any) => [i.productId, i.amount, i.unit, i.servingLabel, i.nutrients.kcal]),
+    [
+      [oats.id, 1, 'serving', 'bowl', 185],
+      [milk.id, 200, 'g', null, 100],
+      [null, 90, 'kcal', null, 90],
+    ],
+    'in the order they were logged',
+  );
+  assert.equal(meal.totals.kcal, 375);
+
+  // The product changes: the saved meal follows; the product is deleted: its own values, as a quick add.
+  await call('PUT', `/api/products/${milk.id}`, { nameEn: 'Milk', nameNl: '', per100: per100(60, 3.5, 5, 1.5) });
+  await call('DELETE', `/api/products/${oats.id}`);
+  const [listed] = (await call('GET', '/api/saved-meals')).body.savedMeals;
+  assert.equal(listed.items[1].nutrients.kcal, 120);
+  assert.equal(listed.items[0].productId, null);
+  assert.equal(listed.items[0].unit, 'kcal');
+  assert.deepEqual(listed.items[0].quick, { name: 'Oats', kcal: 185, protein: 6.5, carbs: 30, fat: 3.5, aiEstimate: false });
+
+  // Logging is a normal PUT per item; the item is ready to send.
+  const item = listed.items[0];
+  const logged = await call('PUT', `/api/diary/entries/${crypto.randomUUID()}`, { day: '2026-11-28', mealId: 2, productId: item.productId, amount: item.amount, unit: item.unit, servingLabel: item.servingLabel, quick: item.quick });
+  assert.equal(logged.status, 200, JSON.stringify(logged.body));
+  assert.equal(logged.body.entry.nutrients.kcal, 185);
+
+  // Rename and drop an item; at least one has to stay.
+  const kept = listed.items.slice(1).map((i: any) => i.id);
+  const renamed = (await call('PUT', `/api/saved-meals/${listed.id}`, { name: 'Breakfast light', itemIds: kept })).body.savedMeal;
+  assert.equal(renamed.name, 'Breakfast light');
+  assert.equal(renamed.items.length, 2);
+  assert.equal((await call('PUT', `/api/saved-meals/${listed.id}`, { name: 'x', itemIds: [999999] })).status, 400);
+  assert.equal((await call('PUT', '/api/saved-meals/999999', { name: 'x' })).status, 404);
+
+  // It goes along in an export.
+  const exported = (await call('GET', '/api/export/json')).body;
+  await call('POST', '/api/import/json', { app: 'open-nutrilog', tables: {} });
+  assert.deepEqual((await call('GET', '/api/saved-meals')).body.savedMeals, []);
+  await call('POST', '/api/import/json', exported);
+  assert.equal((await call('GET', '/api/saved-meals')).body.savedMeals[0].items.length, 2);
+
+  // Bad input, and deleting.
+  assert.equal((await call('POST', '/api/saved-meals', { name: '', entryIds: [b.id] })).status, 400);
+  assert.equal((await call('POST', '/api/saved-meals', { name: 'x', entryIds: [crypto.randomUUID()] })).status, 400);
+  assert.equal((await call('DELETE', `/api/saved-meals/${listed.id}`)).status, 200);
+  assert.deepEqual((await call('GET', '/api/saved-meals')).body.savedMeals, []);
+});
+
 test('search: prefixes and typos, own and recently eaten first, hidden left out', async () => {
   const offId = (await call('GET', `/api/products/barcode/${yoghurt.code}`)).body.product.id;
   const own = await product('Greek yoghurt');

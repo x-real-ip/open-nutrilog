@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { PicnicArticle, PicnicImport, Product, ProductLists } from '@shared/types.ts';
+import type { PicnicArticle, PicnicImport, Product, ProductLists, SavedMeal } from '@shared/types.ts';
 import { useInfo } from '../App.tsx';
 import { api } from '../api.ts';
 import { sourceLabel } from '../food.ts';
@@ -9,10 +9,11 @@ import { t } from '../i18n.ts';
 import { IconPlus, IconStar } from './Icons.tsx';
 import { Sheet, toast } from './ui.tsx';
 
-type Tab = 'recent' | 'frequent' | 'favorites' | 'mine' | 'picnic';
+type Tab = 'recent' | 'frequent' | 'favorites' | 'mine' | 'meals' | 'picnic';
 
-const TABS = (picnic: boolean): { id: Tab; label: string }[] => [
+const TABS = (picnic: boolean, meals: boolean): { id: Tab; label: string }[] => [
   { id: 'recent', label: t('Recent', 'Recent') },
+  ...(meals ? [{ id: 'meals' as Tab, label: t('Saved meals', 'Vaste maaltijden') }] : []),
   { id: 'frequent', label: t('Frequent', 'Vaak') },
   { id: 'favorites', label: t('Favourites', 'Favorieten') },
   { id: 'mine', label: t('My foods', 'Mijn producten') },
@@ -64,6 +65,42 @@ function PicnicList({ onPick, onDraft }: { onPick: (p: Product) => void; onDraft
   );
 }
 
+/** Your saved meals: tapping one logs all of its foods at once. */
+function SavedMealList({ meals, onPick, onClose }: { meals: SavedMeal[] | null; onPick: (m: SavedMeal) => void; onClose: () => void }) {
+  if (!meals) return <p className="muted">{t('Loading…', 'Laden…')}</p>;
+  return (
+    <>
+      {meals.length ? (
+        <div className="list" onTouchStart={blurField}>
+          {meals.map((m) => (
+            <button key={m.id} className="list-row" onClick={() => onPick(m)}>
+              <div className="grow">
+                <div className="title">{m.name}</div>
+                <div className="sub">
+                  {m.items.length === 1 ? t('1 food', '1 product') : t(`${m.items.length} foods`, `${m.items.length} producten`)} · {m.items.map((i) => i.name).join(', ')}
+                </div>
+              </div>
+              <span className="num">{Math.round(m.totals.kcal)}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">
+          {t(
+            'Save what you often eat together from a meal’s menu in the diary (tap the meal’s name), then log it here in one tap.',
+            'Sla op wat je vaak samen eet via het menu van een maaltijd in het dagboek (tik op de naam van de maaltijd), en log het hier met één tik.',
+          )}
+        </p>
+      )}
+      {meals.length > 0 && (
+        <Link className="link-btn" to="/saved-meals" onClick={onClose}>
+          {t('Manage saved meals', 'Vaste maaltijden beheren')}
+        </Link>
+      )}
+    </>
+  );
+}
+
 /** Closes the on-screen keyboard by leaving the field that has it. */
 export function blurField() {
   const el = document.activeElement;
@@ -110,6 +147,7 @@ export function AddFoodSheet({
   onDescribe,
   onPhoto,
   onPicnicDraft,
+  onSavedMeal,
   allowRecipes = true,
 }: {
   open: boolean;
@@ -125,12 +163,15 @@ export function AddFoodSheet({
   onPhoto?: () => void;
   /** A Picnic product without readable nutrition values: complete it as your own product. */
   onPicnicDraft?: (d: NonNullable<PicnicImport['draft']>) => void;
+  /** The diary only: log a saved meal (all its foods). */
+  onSavedMeal?: (m: SavedMeal) => void;
   /** A recipe can't be an ingredient of another recipe. */
   allowRecipes?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[] | null>(null);
   const [lists, setLists] = useState<ProductLists | null>(null);
+  const [savedMeals, setSavedMeals] = useState<SavedMeal[] | null>(null);
   const [tab, setTab] = useState<Tab>('recent');
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState<'idle' | 'busy' | 'done'>('idle');
@@ -151,6 +192,13 @@ export function AddFoodSheet({
         setTab(l.recent.length ? 'recent' : l.favorites.length ? 'favorites' : l.mine.length ? 'mine' : 'recent');
       })
       .catch((e: Error) => setError(e.message));
+    if (onSavedMeal) {
+      setSavedMeals(null);
+      api
+        .savedMeals()
+        .then((r) => setSavedMeals(r.savedMeals))
+        .catch(() => setSavedMeals([]));
+    }
   }, [open]);
 
   // Search as you type, a moment after the last key; answers to older queries are ignored.
@@ -199,7 +247,8 @@ export function AddFoodSheet({
   };
 
   const info = useInfo();
-  const shown = (results ?? (tab === 'picnic' ? [] : (lists?.[tab] ?? []))).filter((p) => allowRecipes || p.source !== 'recipe');
+  const listTab = tab !== 'picnic' && tab !== 'meals';
+  const shown = (results ?? (listTab ? (lists?.[tab] ?? []) : [])).filter((p) => allowRecipes || p.source !== 'recipe');
   const empty = results
     ? online === 'busy'
       ? ''
@@ -209,6 +258,7 @@ export function AddFoodSheet({
         frequent: t('What you log more than once shows up here.', 'Wat je vaker logt, verschijnt hier.'),
         favorites: t('Tap the star on a product to make it a favourite.', 'Tik op de ster bij een product om het favoriet te maken.'),
         mine: t('Products you add yourself show up here.', 'Producten die je zelf toevoegt, verschijnen hier.'),
+        meals: '',
         picnic: '',
       }[tab];
 
@@ -264,7 +314,7 @@ export function AddFoodSheet({
 
         {!results && (
           <div className="chips" role="tablist">
-            {TABS(info.picnicLinked).map((x) => (
+            {TABS(info.picnicLinked, !!onSavedMeal).map((x) => (
               <button key={x.id} role="tab" aria-pressed={tab === x.id} aria-selected={tab === x.id} onClick={() => setTab(x.id)}>
                 {x.label}
               </button>
@@ -274,7 +324,8 @@ export function AddFoodSheet({
 
         {error && <p className="error">{error}</p>}
         {tab === 'picnic' && !results && <PicnicList onPick={onPick} onDraft={onPicnicDraft} />}
-        {tab === 'picnic' && !results ? null : shown.length > 0 ? (
+        {tab === 'meals' && !results && onSavedMeal && <SavedMealList meals={savedMeals} onPick={onSavedMeal} onClose={onClose} />}
+        {!listTab && !results ? null : shown.length > 0 ? (
           // Scrolling through the results puts the keyboard away, like other apps do.
           <div className="list" onTouchStart={blurField}>
             {shown.map((p) => (

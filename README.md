@@ -20,6 +20,7 @@ A personal, self-hosted calorie and nutrition tracker: a food diary with search,
 - **Days in your time zone**: a diary day runs from midnight to midnight in `Europe/Amsterdam` (or the `TZ` of the server, or the zone in your profile), whatever the time zone of the device.
 - **Diary**: a day per page with breakfast, lunch, dinner and snacks. Rename or hide a meal, or add your own. Swipe through days with the arrows or tap the date to pick one. Each entry shows its energy; the day and every meal show their total, with protein, carbohydrates and fat.
 - **Adding food**: search, or pick from *Recent*, *Frequent*, *Favourites* and *My foods*. Amounts in grams or ml, or in servings ("2 × 1 slice"), with energy and macros updating as you type. *Quick add* logs only energy, or energy plus macros, without a product. Copy a meal from the day before, a meal to today, or a whole day.
+- **Saved meals**: save what you often eat together ("my breakfast") from a meal's menu in the diary, then log it from *Add food → Saved meals* in one tap. Values follow the products; manage them under *Profile → Saved meals*.
 - **Several at once**: *Select* in the diary to pick entries, then move them to another meal or day, copy them to one or more days (the coming week in one tap), or delete them. A meal's menu copies the whole meal to other days.
 - **Barcodes**: scan with the camera (the browser's own barcode reader where it has one, such as Chrome on Android or Vanadium on GrapheneOS, otherwise a built-in WebAssembly reader) or type the number. Your own products with that barcode come first; otherwise the server looks it up at [Open Food Facts](https://world.openfoodfacts.org) and keeps a copy. An unknown barcode opens a new product with the barcode filled in.
 - **Search**: your own products, recipes, favourites and what you ate lately come first, then generic foods from NEVO, then Open Food Facts; each result shows its source. Typos are forgiven ("yoghrt"). When the local search has nothing, the app asks Open Food Facts itself.
@@ -202,6 +203,7 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
     throttle.ts           token bucket for outside APIs
     meals.ts              meals of a day
     diary.ts              entries (PUT by a client id), nutrient snapshots, copying, moving
+    savedMeals.ts         saved meals (a fixed set of foods logged in one tap)
     targets.ts            the target engine: pure functions, BMR, phases, training, macros, adaptive maintenance
     dayTargets.ts         gathers the engine's inputs (profile, weigh-ins, marks, intake) and builds progress
     bodyWeight.ts         weigh-ins; the latest is the profile weight; sent to Open Strength when linked
