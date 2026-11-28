@@ -26,6 +26,8 @@ approach and adapt it. There is no shared package between the two repos; copying
   `server/db.ts`; never edit a migration that has shipped. Migrations must stay
   idempotent (`npm run migrate` runs as an init container on every rollout).
 - Single user: the profile is the row with `id = 1`.
+  A new profile field goes in `profileSchema` (`server/services/profile.ts`, with a default) and the `Profile` type;
+  the PWA takes a new profile's defaults from `GET /api/profile`, so it keeps no copy of them.
 - Nutrient maths (units, servings, totals) lives in `shared/nutrition.ts` and is used by both the server and the PWA,
   so a queued entry shows the same numbers as after the server saved it. Don't duplicate it.
 - Diary entries are written with `PUT /api/diary/entries/:id` by an id the app makes, so the offline queue can retry

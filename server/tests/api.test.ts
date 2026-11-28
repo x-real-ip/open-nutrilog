@@ -41,6 +41,15 @@ test('info: English and the default time zone until a profile says otherwise', a
   assert.equal(info.authRequired, false);
 });
 
+test('profile: the defaults a new profile starts with come from the server, and save as they are', async () => {
+  const { defaults } = (await app.inject({ method: 'GET', url: '/api/profile' })).json();
+  assert.equal(defaults.neat, 1.4);
+  assert.equal(defaults.phase, 'maintain');
+  assert.equal(defaults.updatedAt, undefined);
+  const saved = await app.inject({ method: 'PUT', url: '/api/profile', payload: defaults });
+  assert.equal(saved.statusCode, 200, saved.body);
+});
+
 test('profile: saving the language switches errors to Dutch', async () => {
   const saved = await app.inject({ method: 'PUT', url: '/api/profile', payload: { name: 'Test', language: 'nl' } });
   assert.equal(saved.statusCode, 200);

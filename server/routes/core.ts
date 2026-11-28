@@ -9,7 +9,7 @@ import { aiConfigured, getAiSettings } from '../services/aiSettings.ts';
 import { picnicStatus } from '../services/picnic.ts';
 import { noteProfileWeight } from '../services/bodyWeight.ts';
 import { today } from '../services/days.ts';
-import { getProfile, saveProfile, timeZoneOf } from '../services/profile.ts';
+import { getProfile, profileSchema, saveProfile, timeZoneOf } from '../services/profile.ts';
 
 export async function coreRoutes(app: FastifyInstance) {
   // Kubernetes readiness and liveness probe. Outside /api so it never needs auth.
@@ -64,7 +64,8 @@ export async function coreRoutes(app: FastifyInstance) {
 
   app.post('/api/auth/logout', async (req, reply) => ({ ok: true, redirect: await logout(req, reply) }));
 
-  app.get('/api/profile', async () => ({ profile: await getProfile() }));
+  // `defaults` is what a new profile starts with, so the PWA doesn't keep its own copy.
+  app.get('/api/profile', async () => ({ profile: await getProfile(), defaults: profileSchema.parse({}) }));
   app.put('/api/profile', async (req) => {
     const before = await getProfile();
     const profile = await saveProfile(req.body);
