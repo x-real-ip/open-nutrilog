@@ -93,6 +93,68 @@ function NumberField({ label, value, onChange, suffix, digits = 1 }: { label: st
   );
 }
 
+/** Which meals the diary shows. Saved right away, like hiding a meal from its menu in the diary. */
+function MealsSection() {
+  const { data, setData } = useLoad(() => api.meals().then((r) => r.meals));
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const shown = data.filter((m) => !m.hidden).length;
+
+  const toggle = async (id: number, name: string, hidden: boolean) => {
+    const before = data;
+    // Show the change right away; put it back if the server refuses.
+    setData(data.map((m) => (m.id === id ? { ...m, hidden } : m)));
+    setBusy(true);
+    try {
+      setData((await api.updateMeal(id, name, hidden)).meals);
+    } catch (e) {
+      setData(before);
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const add = async () => {
+    const name = prompt(t('Name of the new meal', 'Naam van de nieuwe maaltijd'))?.trim();
+    if (!name) return;
+    try {
+      setData((await api.addMeal(name)).meals);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  return (
+    <section className="section stack" aria-label={t('Meals', 'Maaltijden')}>
+      <h2>{t('Meals', 'Maaltijden')}</h2>
+      <div className="list">
+        {data.map((m) => (
+          <label key={m.id} className="list-row">
+            <input
+              type="checkbox"
+              checked={!m.hidden}
+              // At least one meal stays, or there is nowhere to log.
+              disabled={busy || (!m.hidden && shown === 1)}
+              onChange={(e) => void toggle(m.id, m.name, !e.target.checked)}
+            />
+            <span className="grow">{m.name}</span>
+          </label>
+        ))}
+      </div>
+      <button type="button" className="link-btn" onClick={() => void add()}>
+        {t('Add a meal', 'Maaltijd toevoegen')}
+      </button>
+      <p className="faint small" style={{ margin: 0 }}>
+        {t(
+          'The diary shows the meals that are ticked. A hidden meal with something logged on a day still shows on that day. Rename a meal from its menu in the diary.',
+          'Het dagboek toont de aangevinkte maaltijden. Een verborgen maaltijd waarin die dag iets gelogd is, blijft op die dag zichtbaar. Een maaltijd hernoem je via het menu ervan in het dagboek.',
+        )}
+      </p>
+    </section>
+  );
+}
+
 export default function ProfilePage() {
   const info = useInfo();
   const refreshInfo = useRefreshInfo();
@@ -288,6 +350,8 @@ export default function ProfilePage() {
           <NumberField label={t('Protein per kg body weight', 'Eiwit per kg lichaamsgewicht')} suffix="g" value={p.proteinGPerKg} onChange={(v) => set('proteinGPerKg', v ?? 1.8)} />
         )}
       </section>
+
+      {!isNew && <MealsSection />}
 
       <section className="section stack" aria-label={t('Over the week', 'Over de week')}>
         <h2>{t('Over the week', 'Over de week')}</h2>
