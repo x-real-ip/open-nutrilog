@@ -47,6 +47,8 @@ const empty = (): ProfileInput => ({
   shiftDays: [],
   shiftKcal: 0,
   mealShares: [],
+  kcalOverride: null,
+  weekAverage: false,
 });
 
 const WEEKDAYS = (): string[] => [
@@ -286,6 +288,46 @@ export default function ProfilePage() {
         </div>
         {p.proteinGPerKg !== null && (
           <NumberField label={t('Protein per kg body weight', 'Eiwit per kg lichaamsgewicht')} suffix="g" value={p.proteinGPerKg} onChange={(v) => set('proteinGPerKg', v ?? 1.8)} />
+        )}
+        <div className="field">
+          <span>{t('Calorie target', 'Caloriedoel')}</span>
+          <div className="seg">
+            <button type="button" aria-pressed={p.kcalOverride === null} onClick={() => set('kcalOverride', null)}>
+              {t('Worked out', 'Berekend')}
+            </button>
+            <button type="button" aria-pressed={p.kcalOverride !== null} onClick={() => set('kcalOverride', p.kcalOverride ?? 2000)}>
+              {t('My own', 'Zelf instellen')}
+            </button>
+          </div>
+        </div>
+        {p.kcalOverride !== null && (
+          <>
+            <NumberField
+              label={t('My target on a rest day', 'Mijn doel op een rustdag')}
+              suffix="kcal"
+              digits={0}
+              value={p.kcalOverride}
+              onChange={(v) => set('kcalOverride', v === null ? 2000 : Math.round(v))}
+            />
+            <p className="faint small" style={{ margin: 0 }}>
+              {t(
+                'Replaces maintenance plus your pace. Training days, higher days and the weekly average still apply, and it never goes below your resting energy. The macros follow it.',
+                'Vervangt onderhoud plus je tempo. Trainingsdagen, hogere dagen en het weekgemiddelde blijven gelden, en het gaat nooit onder je ruststofwisseling. De macro’s volgen het.',
+              )}
+            </p>
+          </>
+        )}
+        <label className="row" style={{ gap: 12 }}>
+          <input type="checkbox" checked={p.weekAverage} onChange={(e) => set('weekAverage', e.target.checked)} />
+          <span>{t('Weekly average: make up for eating more or less on the days left in the week', 'Weekgemiddelde: meer of minder eten verrekenen met de resterende dagen van de week')}</span>
+        </label>
+        {p.weekAverage && (
+          <p className="faint small" style={{ margin: 0 }}>
+            {t(
+              'Eat 600 kcal more on Monday, and the six days after get 100 kcal less each; eat less, and they get more. Only days you logged completely count, at most 300 kcal a day either way, and every Monday starts fresh. Today shows when it applies.',
+              'Eet je maandag 600 kcal meer, dan krijgen de zes dagen erna elk 100 kcal minder; eet je minder, dan krijgen ze meer. Alleen volledig gelogde dagen tellen, maximaal 300 kcal per dag omhoog of omlaag, en elke maandag begint opnieuw. Vandaag laat zien wanneer het meetelt.',
+            )}
+          </p>
         )}
       </section>
 

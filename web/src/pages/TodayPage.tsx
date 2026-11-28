@@ -157,6 +157,20 @@ export default function TodayPage() {
               {goal.workoutKcal > 0 && <div className="small muted">{t(`incl. ${goal.workoutKcal} kcal training`, `incl. ${goal.workoutKcal} kcal training`)}</div>}
             </div>
           </div>
+          {goal.carry && goal.carry.perDay !== 0 && (
+            <p className="notice small carry" style={{ margin: 0 }} aria-label={t('Weekly average', 'Weekgemiddelde')}>
+              {goal.carry.balance > 0
+                ? t(
+                    `Weekly average: ${goal.carry.perDay * -1} kcal less today. This week you ate ${goal.carry.balance} kcal more than your targets so far; that is spread over the ${goal.carry.daysLeft} days left.`,
+                    `Weekgemiddelde: vandaag ${goal.carry.perDay * -1} kcal minder. Deze week at je tot nu toe ${goal.carry.balance} kcal meer dan je doelen; dat wordt verdeeld over de ${goal.carry.daysLeft} resterende dagen.`,
+                  )
+                : t(
+                    `Weekly average: ${goal.carry.perDay} kcal more today. This week you ate ${-goal.carry.balance} kcal less than your targets so far; that is spread over the ${goal.carry.daysLeft} days left.`,
+                    `Weekgemiddelde: vandaag ${goal.carry.perDay} kcal meer. Deze week at je tot nu toe ${-goal.carry.balance} kcal minder dan je doelen; dat wordt verdeeld over de ${goal.carry.daysLeft} resterende dagen.`,
+                  )}
+              {goal.carry.capped && t(' At most 300 kcal a day; the rest is let go.', ' Maximaal 300 kcal per dag; de rest laten we gaan.')}
+            </p>
+          )}
           <div className="macros">
             <MacroBar label={t('Protein', 'Eiwit')} eaten={eaten.protein} target={goal.proteinG} color="var(--macro-protein)" />
             <MacroBar label={t('Carbohydrates', 'Koolhydraten')} eaten={eaten.carbs} target={goal.carbsG} color="var(--macro-carbs)" />
