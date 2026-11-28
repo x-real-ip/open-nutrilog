@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Language, LinkedStrength, Phase, PicnicStatus, Profile, Sex } from '@shared/types.ts';
 import { api } from '../api.ts';
 import { useInfo, useRefreshInfo, useSetLanguage } from '../App.tsx';
+import { FAST_GOALS } from '../components/FastingCard.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
 import { disableNotifications, enableNotifications, notificationsOn, pushSupport } from '../notifications.ts';
 import { parseNumber } from '../food.ts';
@@ -43,6 +44,8 @@ const empty = (): ProfileInput => ({
   trainingMinutes: 60,
   workoutEnergyShare: 100,
   reminders: { meals: [], weighIn: null, summary: null },
+  fasting: false,
+  fastingGoalHours: 16,
   shiftDays: [],
   shiftKcal: 0,
   mealShares: [],
@@ -462,6 +465,29 @@ export default function ProfilePage() {
       </section>
 
       {!isNew && <RemindersSection value={p.reminders} onChange={(r) => set('reminders', r)} />}
+
+      <section className="section stack" aria-label={t('Fasting', 'Vasten')}>
+        <h2>{t('Fasting', 'Vasten')}</h2>
+        <label className="row" style={{ gap: 12 }}>
+          <input type="checkbox" checked={p.fasting} onChange={(e) => set('fasting', e.target.checked)} />
+          <span>{t('Show the fasting timer on Today', 'Toon de vastentimer op Vandaag')}</span>
+        </label>
+        {p.fasting && (
+          <div className="field">
+            <span>{t('Usual goal', 'Gebruikelijk doel')}</span>
+            <div className="chips wrap">
+              {FAST_GOALS.map((g) => (
+                <button key={g} type="button" aria-pressed={p.fastingGoalHours === g} onClick={() => set('fastingGoalHours', g)}>
+                  {g} {t('h', 'u')}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <p className="faint small" style={{ margin: 0 }}>
+          {t('For intermittent fasting, such as 16:8. It only keeps time; your targets stay the same.', 'Voor intermittent fasting, zoals 16:8. Het houdt alleen de tijd bij; je doelen blijven hetzelfde.')}
+        </p>
+      </section>
 
       <section className="section stack">
         <label className="field">

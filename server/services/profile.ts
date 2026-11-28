@@ -35,6 +35,8 @@ const fields = z.object({
       summary: clockTime.nullable().default(null),
     })
     .default({ meals: [], weighIn: null, summary: null }),
+  fasting: z.boolean().default(false),
+  fastingGoalHours: z.number().int().min(1).max(72).default(16),
   /** Higher days (1 = Monday … 7 = Sunday) with their extra energy; the other days give it back. */
   shiftDays: z
     .array(z.number().int().min(1).max(7))

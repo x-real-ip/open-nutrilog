@@ -7,6 +7,7 @@ import { BottomNav, ErrorState, Loading, ToastHost } from './components/ui.tsx';
 import AiPage from './pages/AiPage.tsx';
 import CoachPage from './pages/CoachPage.tsx';
 import DiaryPage from './pages/DiaryPage.tsx';
+import FastingPage from './pages/FastingPage.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
 import ProgressPage from './pages/ProgressPage.tsx';
@@ -73,6 +74,7 @@ export default function App() {
               <Route path="/diary" element={<DiaryPage />} />
               <Route path="/diary/:day" element={<DiaryPage />} />
               <Route path="/progress" element={<ProgressPage />} />
+              <Route path="/fasting" element={<FastingPage />} />
               <Route path="/week" element={<WeekPage />} />
               <Route path="/week/:day" element={<WeekPage />} />
               <Route path="/profile" element={<ProfilePage />} />
