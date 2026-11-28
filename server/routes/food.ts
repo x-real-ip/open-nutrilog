@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { langOf, UserError } from '../i18n.ts';
-import { copyEntries, deleteEntry, getDay, putEntry } from '../services/diary.ts';
+import { copyEntries, deleteEntry, getDay, moveEntries, putEntry } from '../services/diary.ts';
 import { today } from '../services/days.ts';
 import { addMeal, listMeals, updateMeal } from '../services/meals.ts';
 import {
@@ -115,4 +115,5 @@ export async function foodRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/diary/copy', async (req) => copyEntries(req.body, (await context()).lang));
+  app.post('/api/diary/move', async (req) => moveEntries(req.body));
 }

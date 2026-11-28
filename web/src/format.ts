@@ -39,6 +39,11 @@ export function longDate(day: string): string {
   return new Date(`${day}T12:00:00Z`).toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 }
 
+/** YYYY-MM-DD as a short day for a chip ("Sat 29" / "za 29"). */
+export function chipDate(day: string): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
 /** A YYYY-MM-DD date moved by whole calendar days. */
 export function addDaysTo(day: string, n: number): string {
   const d = new Date(`${day}T00:00:00Z`);

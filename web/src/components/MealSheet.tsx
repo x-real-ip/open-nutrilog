@@ -5,7 +5,7 @@ import { addDaysTo, dayLabel } from '../format.ts';
 import { t } from '../i18n.ts';
 import { Sheet, toast } from './ui.tsx';
 
-/** A meal's menu: copy it to or from another day, rename it, or hide it. */
+/** A meal's menu: copy it to or from other days, rename it, or hide it. */
 export function MealSheet({
   open,
   meal,
@@ -14,6 +14,7 @@ export function MealSheet({
   hasEntries,
   onClose,
   onChanged,
+  onCopyToDays,
 }: {
   open: boolean;
   meal: Meal | null;
@@ -22,6 +23,8 @@ export function MealSheet({
   hasEntries: boolean;
   onClose: () => void;
   onChanged: () => void;
+  /** Opens the sheet to copy this meal to one or more days. */
+  onCopyToDays: () => void;
 }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -63,6 +66,14 @@ export function MealSheet({
               <div className="sub">{t('The same meal of the day before', 'Dezelfde maaltijd van de dag ervoor')}</div>
             </div>
           </button>
+          {hasEntries && (
+            <button className="list-row" disabled={busy} onClick={onCopyToDays}>
+              <div className="grow">
+                <div className="title">{t('Copy to other days…', 'Kopiëren naar andere dagen…')}</div>
+                <div className="sub">{t('For example the coming days of the week', 'Bijvoorbeeld de komende dagen van de week')}</div>
+              </div>
+            </button>
+          )}
           {hasEntries && day !== today && (
             <button
               className="list-row"

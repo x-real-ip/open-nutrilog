@@ -84,7 +84,9 @@ export const api = {
   updateMeal: (id: number, name: string, hidden: boolean) => request<{ meals: Meal[] }>('PUT', `/api/meals/${id}`, { name, hidden }),
 
   day: (day: string) => request<DiaryDay>('GET', `/api/diary/${day}`),
-  copy: (body: { from: string; to: string; mealId?: number | null; toMealId?: number | null }) => request<DiaryDay>('POST', '/api/diary/copy', body),
+  copy: (body: { from: string; to?: string; days?: string[]; mealId?: number | null; entryIds?: string[]; toMealId?: number | null }) =>
+    request<DiaryDay & { copied: number }>('POST', '/api/diary/copy', body),
+  move: (body: { entryIds: string[]; day?: string | null; mealId?: number | null }) => request<{ moved: number }>('POST', '/api/diary/move', body),
 
   target: (day: string) => request<TargetResponse>('GET', `/api/targets/${day}`),
   setMark: (day: string, mark: Partial<DayMark>) => request<TargetResponse>('PUT', `/api/days/${day}/mark`, mark),
@@ -155,6 +157,11 @@ export function onQueueChange(fn: () => void): () => void {
 }
 
 const notify = () => listeners.forEach((fn) => fn());
+
+/** Whether this entry still has a change queued on this device. */
+export function isPending(id: string): boolean {
+  return getPending(id) !== undefined;
+}
 
 export function pendingCount(): number {
   return pendingAll().length;

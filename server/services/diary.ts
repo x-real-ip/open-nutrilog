@@ -168,35 +168,81 @@ export async function deleteEntry(id: string): Promise<void> {
 export const copySchema = z
   .object({
     from: day,
-    to: day,
+    /** One day to copy to (kept for older clients); or `days` for several. */
+    to: day.optional(),
+    days: z.array(day).min(1).max(62).optional(),
     /** Copy only this meal; without it the whole day. */
     mealId: z.number().int().positive().nullable().default(null),
-    /** Into this meal (only with mealId); by default the same meal. */
+    /** Copy only these entries of `from`. */
+    entryIds: z.array(z.uuid()).min(1).max(200).optional(),
+    /** Into this meal; by default each entry keeps its own meal. */
     toMealId: z.number().int().positive().nullable().default(null),
   })
-  .strict();
+  .strict()
+  .refine((v) => v.to || v.days, { message: 'to or days is required' });
 
-/** Copies a meal or a whole day to another day, as new entries with the same values. */
-export async function copyEntries(raw: unknown, lang: Lang): Promise<DiaryDay> {
-  const { from, to, mealId, toMealId } = copySchema.parse(raw);
+async function checkMeal(id: number | null, c: Queryable): Promise<void> {
+  if (id !== null && !(await one('SELECT 1 FROM meals WHERE id = $1', [id], c))) throw new UserError(400, 'Unknown meal', 'Onbekende maaltijd');
+}
+
+/**
+ * Copies entries (a whole day, one meal, or a selection) to one or more other days, as new entries with the same
+ * values. Answers with the first day copied to.
+ */
+export async function copyEntries(raw: unknown, lang: Lang): Promise<DiaryDay & { copied: number }> {
+  const { from, to, days, mealId, entryIds, toMealId } = copySchema.parse(raw);
+  const targets = [...new Set(days ?? [to!])].sort();
+  let copied = 0;
   await tx(async (c) => {
+    await checkMeal(toMealId, c);
     const rows = await all(
-      `SELECT * FROM diary_entries WHERE day = $1 AND ($2::int IS NULL OR meal_id = $2) ORDER BY created_at, id`,
-      [from, mealId],
+      `SELECT * FROM diary_entries WHERE day = $1 AND ($2::int IS NULL OR meal_id = $2) AND ($3::uuid[] IS NULL OR id = ANY($3))
+       ORDER BY created_at, id`,
+      [from, mealId, entryIds ?? null],
       c,
     );
     if (!rows.length) throw new UserError(400, 'There is nothing to copy.', 'Er is niets om te kopiëren.');
-    for (const [i, r] of rows.entries()) {
-      await run(
-        `INSERT INTO diary_entries (id, day, meal_id, product_id, name, brand, source, amount, unit, serving_label, quantity,
-           kcal, protein, carbs, sugars, fat, sat_fat, fibre, salt, ai_estimate, created_at, updated_at)
-         SELECT $2, $3, $4, product_id, name, brand, source, amount, unit, serving_label, quantity,
-           kcal, protein, carbs, sugars, fat, sat_fat, fibre, salt, ai_estimate, now() + $5 * interval '1 millisecond', now()
-         FROM diary_entries WHERE id = $1`,
-        [r.id, crypto.randomUUID(), to, mealId && toMealId ? toMealId : r.meal_id, i],
-        c,
-      );
+    for (const target of targets) {
+      for (const [i, r] of rows.entries()) {
+        await run(
+          `INSERT INTO diary_entries (id, day, meal_id, product_id, name, brand, source, amount, unit, serving_label, quantity,
+             kcal, protein, carbs, sugars, fat, sat_fat, fibre, salt, ai_estimate, created_at, updated_at)
+           SELECT $2, $3, $4, product_id, name, brand, source, amount, unit, serving_label, quantity,
+             kcal, protein, carbs, sugars, fat, sat_fat, fibre, salt, ai_estimate, now() + $5 * interval '1 millisecond', now()
+           FROM diary_entries WHERE id = $1`,
+          [r.id, crypto.randomUUID(), target, toMealId ?? r.meal_id, i],
+          c,
+        );
+        copied++;
+      }
     }
   });
-  return getDay(to, lang);
+  return { ...(await getDay(targets[0], lang)), copied };
+}
+
+export const moveSchema = z
+  .object({
+    entryIds: z.array(z.uuid()).min(1).max(200),
+    /** To this day; by default the day stays. */
+    day: day.nullable().default(null),
+    /** To this meal; by default each entry keeps its meal. */
+    mealId: z.number().int().positive().nullable().default(null),
+  })
+  .strict()
+  .refine((v) => v.day || v.mealId, { message: 'day or mealId is required' });
+
+/** Moves entries to another meal and/or day. Their values stay as they were logged. */
+export async function moveEntries(raw: unknown): Promise<{ moved: number }> {
+  const { entryIds, day: toDay, mealId } = moveSchema.parse(raw);
+  return tx(async (c) => {
+    await checkMeal(mealId, c);
+    const rows = await all(
+      `UPDATE diary_entries SET day = COALESCE($2::date, day), meal_id = COALESCE($3::int, meal_id), updated_at = now()
+       WHERE id = ANY($1::uuid[]) RETURNING id`,
+      [entryIds, toDay, mealId],
+      c,
+    );
+    if (!rows.length) throw new UserError(400, 'There is nothing to move.', 'Er is niets om te verplaatsen.');
+    return { moved: rows.length };
+  });
 }

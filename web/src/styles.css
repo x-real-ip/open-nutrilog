@@ -1027,6 +1027,82 @@ details.why summary::-webkit-details-marker {
   color: var(--chalk-2);
 }
 
+/* Picking entries for a bulk action: a check circle per row and a bar with the actions above the navigation. */
+.list-row.entry .pick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid var(--deck-3);
+  color: var(--floor);
+}
+
+.list-row.entry[aria-pressed='true'] {
+  background: var(--deck-2);
+}
+
+.list-row.entry[aria-pressed='true'] .pick {
+  border-color: var(--chalk);
+  background: var(--chalk);
+}
+
+.select-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-h) + var(--safe-b));
+  z-index: 15;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--floor) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--rule);
+}
+
+.select-bar-inner {
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.select-bar-inner .grow {
+  flex: 1;
+  min-width: 0;
+  color: var(--chalk-2);
+}
+
+.select-bar-inner .grow .num {
+  color: var(--chalk);
+  font-size: 18px;
+}
+
+/* On narrow phones only the number fits next to the three buttons. */
+@media (max-width: 460px) {
+  .select-bar-inner .picked-word {
+    display: none;
+  }
+}
+
+/* Room for the bar below the last meal, and the toast above it. */
+.page:has(.select-bar) {
+  padding-bottom: calc(var(--nav-h) + 96px + var(--safe-b));
+}
+
+body:has(.select-bar) .toast {
+  bottom: calc(var(--nav-h) + 84px + var(--safe-b));
+}
+
+.chips.wrap {
+  flex-wrap: wrap;
+  overflow: visible;
+  padding-right: 0;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
 /* Where a product comes from: own, Open Food Facts or NEVO. */
 .badge {
   display: inline-block;
@@ -1381,9 +1457,18 @@ details.why summary::-webkit-details-marker {
   }
 
   /* Bars fixed to the bottom sit next to the sidebar, not under it. */
-  .with-nav .composer {
+  .with-nav .composer,
+  .with-nav .select-bar {
     left: var(--rail-w);
     bottom: 0;
+  }
+
+  .with-nav .select-bar-inner {
+    max-width: 696px;
+  }
+
+  body:has(.select-bar) .with-nav ~ .toast {
+    bottom: 92px;
   }
 
   .with-nav .composer form,
