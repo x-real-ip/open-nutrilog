@@ -5,6 +5,7 @@ import { api } from '../api.ts';
 import { useInfo, useRefreshInfo, useSetLanguage } from '../App.tsx';
 import { FAST_GOALS } from '../components/FastingCard.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
+import { disableNotifications, enableNotifications, notificationsOn, pushSupport } from '../notifications.ts';
 import { parseNumber } from '../food.ts';
 import { kg, longDate, num, versionLabel } from '../format.ts';
 import { getLang, t } from '../i18n.ts';
@@ -42,6 +43,7 @@ const empty = (): ProfileInput => ({
   metStrength: 5,
   trainingMinutes: 60,
   workoutEnergyShare: 100,
+  reminders: { meals: [], weighIn: null, summary: null },
   fasting: false,
   fastingGoalHours: 16,
   shiftDays: [],
@@ -90,6 +92,94 @@ function NumberField({ label, value, onChange, suffix, digits = 1 }: { label: st
         }}
       />
     </label>
+  );
+}
+
+/** Notifications on this device, and the times of the reminders (saved with the profile). */
+function RemindersSection({ value, onChange }: { value: ProfileInput['reminders']; onChange: (r: ProfileInput['reminders']) => void }) {
+  const support = pushSupport();
+  const [on, setOn] = useState(notificationsOn());
+  const [busy, setBusy] = useState(false);
+  const meals = useLoad(() => api.meals().then((r) => r.meals.filter((m) => !m.hidden)));
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      if (on) {
+        await disableNotifications();
+        setOn(false);
+      } else if (await enableNotifications()) {
+        setOn(true);
+        toast(t('Notifications are on', 'Meldingen staan aan'));
+      } else {
+        toast(t('Notifications are blocked. Allow them in the browser settings.', 'Meldingen zijn geblokkeerd. Sta ze toe in de instellingen van je browser.'));
+      }
+    } catch (e) {
+      // Private windows and browsers without a push service can't do this at all.
+      toast(`${t('Notifications could not be turned on', 'Meldingen konden niet aan')}: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const mealTime = (id: number) => value.meals.find((m) => m.mealId === id)?.time ?? '';
+  const setMealTime = (id: number, time: string) =>
+    onChange({ ...value, meals: [...value.meals.filter((m) => m.mealId !== id), ...(time ? [{ mealId: id, time }] : [])].sort((a, b) => a.mealId - b.mealId) });
+
+  return (
+    <section className="section stack" aria-label={t('Reminders', 'Herinneringen')}>
+      <h2>{t('Reminders', 'Herinneringen')}</h2>
+      <p className="faint small" style={{ margin: 0 }}>
+        {t(
+          'A notification when a meal has nothing logged at its time, when you haven’t weighed yourself, and a summary of your day. Leave a time empty to skip it. Notifications are per device.',
+          'Een melding als er op de tijd van een maaltijd nog niets gelogd is, als je je nog niet gewogen hebt, en een samenvatting van je dag. Laat een tijd leeg om hem over te slaan. Meldingen zijn per apparaat.',
+        )}
+      </p>
+      {support === 'supported' ? (
+        <div className="stack" style={{ gap: 6 }}>
+          <button type="button" className="btn block" disabled={busy} onClick={() => void toggle()}>
+            {on ? t('Turn off notifications on this device', 'Meldingen op dit apparaat uitzetten') : t('Turn on notifications on this device', 'Meldingen op dit apparaat aanzetten')}
+          </button>
+          {on && (
+            <button
+              type="button"
+              className="link-btn small"
+              onClick={async () => {
+                const { sent } = await api.pushTest();
+                toast(sent ? t('Test notification sent', 'Testmelding verstuurd') : t('No device to send to', 'Geen apparaat om naar te sturen'));
+              }}
+            >
+              {t('Send a test notification', 'Stuur een testmelding')}
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="small muted" style={{ margin: 0 }}>
+          {support === 'install-first'
+            ? t(
+                'On iPhone and iPad, add the app to your home screen first (Share → Add to Home Screen), then open it from there and turn notifications on.',
+                'Op iPhone en iPad zet je de app eerst op je beginscherm (Deel → Zet op beginscherm). Open hem daarvandaan en zet de meldingen aan.',
+              )
+            : t('This browser does not support notifications.', 'Deze browser ondersteunt geen meldingen.')}
+        </p>
+      )}
+      <div className="grid-2">
+        {(meals.data ?? []).map((m) => (
+          <label key={m.id} className="field">
+            <span>{m.name}</span>
+            <input className="input" type="time" value={mealTime(m.id)} onChange={(e) => setMealTime(m.id, e.target.value)} />
+          </label>
+        ))}
+        <label className="field">
+          <span>{t('Weigh-in', 'Wegen')}</span>
+          <input className="input" type="time" value={value.weighIn ?? ''} onChange={(e) => onChange({ ...value, weighIn: e.target.value || null })} />
+        </label>
+        <label className="field">
+          <span>{t('Summary of the day', 'Samenvatting van de dag')}</span>
+          <input className="input" type="time" value={value.summary ?? ''} onChange={(e) => onChange({ ...value, summary: e.target.value || null })} />
+        </label>
+      </div>
+    </section>
   );
 }
 
@@ -373,6 +463,8 @@ export default function ProfilePage() {
           )}
         </p>
       </section>
+
+      {!isNew && <RemindersSection value={p.reminders} onChange={(r) => set('reminders', r)} />}
 
       <section className="section stack" aria-label={t('Fasting', 'Vasten')}>
         <h2>{t('Fasting', 'Vasten')}</h2>

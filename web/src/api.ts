@@ -112,6 +112,11 @@ export const api = {
   deleteFast: (id: number) => request<FastingState>('DELETE', `/api/fasting/${id}`),
   weekReport: (day?: string) => request<WeekReport>('GET', `/api/week-report${day ? `?day=${day}` : ''}`),
 
+  pushKey: () => request<{ publicKey: string }>('GET', '/api/push/key'),
+  pushSubscribe: (sub: PushSubscriptionJSON) => request<{ ok: true }>('POST', '/api/push/subscriptions', sub),
+  pushUnsubscribe: (endpoint: string) => request<{ ok: true }>('DELETE', '/api/push/subscriptions', { endpoint }),
+  pushTest: () => request<{ sent: number }>('POST', '/api/push/test'),
+
   aiSettings: () => request<AiSettingsView>('GET', '/api/settings/ai'),
   saveAiSettings: (update: AiSettingsUpdate) => request<AiSettingsView>('PUT', '/api/settings/ai', update),
   testAi: () => request<{ ok: true; reply: string; ms: number }>('POST', '/api/settings/ai/test'),

@@ -50,6 +50,7 @@ Targets are **never set by the AI**. They come from a deterministic engine (`ser
 - **Maintenance without training** = BMR × your activity outside training (1.2 mostly sitting, 1.4 some walking, 1.55 on your feet a lot, 1.7 physical work). Training is not in this number, so it is never counted twice.
 - **Goal**: `pace × kg × 7700 / 7` kcal a day less (cut) or more (bulk). The pace is capped at 1 % of body weight a week for a cut and 0.5 % for a bulk.
 - **Training days**: a day you mark as *Training today* (with your usual training length), or later a workout from Open Strength. It adds `(MET − 1) × kg × hours` (net MET, so the resting part isn't counted twice; MET 5.0 for strength training, at most 2 hours), of which 0, 50 or 100 % counts. With carb cycling on, that energy goes to carbohydrates.
+- **Reminders (optional)**: turn on notifications per device (Profile → Reminders) and set times: a meal with nothing logged at its time, no weigh-in yet, and a summary of the day (eaten against target, protein). Times are in the profile's time zone; each reminder goes out at most once a day and only within half an hour of its time. Web Push needs a browser with a push service (Chrome with Google services, Firefox, Safari from the home screen) and outbound HTTPS from the server to it.
 - **Fasting (optional)**: turn on the fasting timer in the profile and it shows on Today: start a fast with a goal (12 to 20 hours), see how long it has run and when the goal is reached, end it. On the fasting page you can set an earlier start, change the goal and see or remove earlier fasts. It only keeps time; targets stay the same.
 - **Higher days**: pick days that get more (such as the weekend, +100 to +500 kcal). The other days get less by the same total (`extra × higher days / other days` each), so the week adds up to the same and the pace doesn't change. The safety floor still holds on the lower days.
 - **Per meal**: optionally split the day's target over the meals in % (adding up to 100). The diary and Today show *eaten / target* per meal; a hidden meal's share is spread over the others.
@@ -211,6 +212,8 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
     savedMeals.ts         saved meals (a fixed set of foods logged in one tap)
     targets.ts            the target engine: pure functions, BMR, phases, training, macros, adaptive maintenance
     dayTargets.ts         gathers the engine's inputs (profile, weigh-ins, marks, intake) and builds progress
+    push.ts               Web Push: VAPID keys and device subscriptions (settings rows, never exported)
+    reminders.ts          the reminders, checked every minute, once a day each
     fasting.ts            the fasting timer: one fast at a time, start and end up to 72 hours back
     weekReport.ts         the weekly report (adds up what the diary and the target engine have)
     bodyWeight.ts         weigh-ins; the latest is the profile weight; sent to Open Strength when linked

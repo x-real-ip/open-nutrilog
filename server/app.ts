@@ -15,6 +15,7 @@ import { targetRoutes } from './routes/targets.ts';
 import { integrationRoutes } from './routes/integration.ts';
 import { aiRoutes } from './routes/ai.ts';
 import { picnicRoutes } from './routes/picnic.ts';
+import { pushRoutes } from './routes/push.ts';
 import { settingsRoutes } from './routes/settings.ts';
 
 export async function buildApp(opts: { logger?: boolean | { level: string } } = {}) {
@@ -44,6 +45,7 @@ export async function buildApp(opts: { logger?: boolean | { level: string } } = 
   await app.register(settingsRoutes);
   await app.register(aiRoutes);
   await app.register(picnicRoutes);
+  await app.register(pushRoutes);
 
   // Serve the built PWA with an SPA fallback.
   if (fs.existsSync(path.join(config.webDir, 'index.html'))) {

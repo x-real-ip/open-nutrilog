@@ -4,6 +4,8 @@ import { config, validTimeZone } from '../config.ts';
 import { nowIso, one, run } from '../db.ts';
 import { DEFAULT_MET, DEFAULT_NEAT, MAX_SHIFT_KCAL } from './targets.ts';
 
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
 const fields = z.object({
   name: z.string().trim().max(60).default(''),
   language: z.enum(['en', 'nl']).default('en'),
@@ -25,6 +27,14 @@ const fields = z.object({
   metStrength: z.number().min(2).max(10).default(DEFAULT_MET),
   trainingMinutes: z.number().int().min(10).max(180).default(60),
   workoutEnergyShare: z.union([z.literal(0), z.literal(50), z.literal(100)]).default(100),
+  /** Push reminders at a time of day (HH:MM in the profile's time zone); null is off. */
+  reminders: z
+    .object({
+      meals: z.array(z.object({ mealId: z.number().int().positive(), time: clockTime })).max(10).default([]),
+      weighIn: clockTime.nullable().default(null),
+      summary: clockTime.nullable().default(null),
+    })
+    .default({ meals: [], weighIn: null, summary: null }),
   fasting: z.boolean().default(false),
   fastingGoalHours: z.number().int().min(1).max(72).default(16),
   /** Higher days (1 = Monday … 7 = Sunday) with their extra energy; the other days give it back. */

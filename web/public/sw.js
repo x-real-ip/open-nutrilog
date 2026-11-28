@@ -73,3 +73,36 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
 });
+
+// Reminders pushed by the server (see server/services/reminders.ts and web/src/notifications.ts).
+self.addEventListener('push', (event) => {
+  let data = { title: 'Open Nutrilog', body: '', tag: 'open-nutrilog', url: '/' };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {
+    // A push without JSON still shows the default notification.
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      tag: data.tag,
+      renotify: true,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: data.url },
+    }),
+  );
+});
+
+// Tapping a reminder opens the app where it points (the diary, progress, today).
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => 'focus' in w);
+      if (open) return open.navigate(url).then((w) => (w || open).focus());
+      return self.clients.openWindow(url);
+    }),
+  );
+});

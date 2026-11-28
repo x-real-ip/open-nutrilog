@@ -7,6 +7,11 @@ export function dayOf(instant: Date | string | number, timeZone: string): string
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
 }
 
+/** The time of day (HH:MM, 24 h) of an instant in a time zone. */
+export function timeOf(instant: Date | string | number, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(instant));
+}
+
 /** Today in a time zone. */
 export function today(timeZone: string): string {
   return dayOf(new Date(), timeZone);
