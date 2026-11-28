@@ -183,6 +183,25 @@ export interface DiaryDay {
   totals: Record<NutrientKey, number>;
 }
 
+/** One food of a saved meal, ready to log: values from its product as it is now, or its own when that is gone. */
+export interface SavedMealItem extends Omit<EntryInput, 'day' | 'mealId'> {
+  id: number;
+  name: string;
+  brand: string;
+  source: ProductSource | null;
+  quantity: number;
+  nutrients: Nutrients;
+  aiEstimate: boolean;
+}
+
+/** A fixed set of foods ("my breakfast") logged in one tap. */
+export interface SavedMeal {
+  id: number;
+  name: string;
+  items: SavedMealItem[];
+  totals: Record<NutrientKey, number>;
+}
+
 // ---------- Targets and progress ----------
 
 export interface DayMark {
