@@ -40,6 +40,8 @@ export interface Profile {
 
 export interface AppInfo {
   aiConfigured: boolean;
+  /** Your Picnic account is linked (optional, experimental). */
+  picnicLinked: boolean;
   aiProvider: string;
   aiModel: string;
   authMode: AuthMode;
@@ -58,7 +60,7 @@ export interface AppInfo {
 
 // ---------- Food ----------
 
-export type ProductSource = 'off' | 'nevo' | 'custom' | 'recipe';
+export type ProductSource = 'off' | 'nevo' | 'custom' | 'recipe' | 'picnic';
 export type ProductPreference = 'favorite' | 'hidden';
 
 export interface Product {
@@ -367,3 +369,29 @@ export interface MealLine {
 export interface MealProposal {
   lines: MealLine[];
 }
+
+// ---------- Picnic (optional, experimental) ----------
+
+export interface PicnicStatus {
+  linked: boolean;
+  linkedAt: string | null;
+  /** Waiting for the 2FA code after a login. */
+  awaiting2fa: boolean;
+}
+
+/** A product from your recent Picnic deliveries. */
+export interface PicnicArticle {
+  id: string;
+  name: string;
+  unitQuantity: string;
+  /** In how many of the recent deliveries it was. */
+  times: number;
+  lastDelivered: string | null;
+  /** The product here, once it has been read. */
+  productId: number | null;
+}
+
+/** Reading a Picnic product: a product when the nutrition values could be read, otherwise a draft to complete. */
+export type PicnicImport =
+  | { product: Product; draft: null }
+  | { product: null; draft: { name: string; brand: string; unit: 'g' | 'ml'; nutritionText: string | null } };

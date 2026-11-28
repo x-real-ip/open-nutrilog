@@ -1057,6 +1057,22 @@ details.why summary::-webkit-details-marker {
   color: #c7bff7;
 }
 
+.hint-text pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--chalk-2);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.spinner.small-spinner {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
 .meal-photo {
   width: 100%;
   max-height: 260px;
@@ -1067,6 +1083,11 @@ details.why summary::-webkit-details-marker {
 /* The coach's suggestion, under its answer. */
 .panel.suggestion {
   border: 1.5px solid var(--deck-3);
+}
+
+.badge.picnic {
+  background: color-mix(in srgb, var(--plate-red) 22%, transparent);
+  color: #f4a8a1;
 }
 
 .badge.nevo {

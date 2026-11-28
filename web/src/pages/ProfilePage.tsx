@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Language, LinkedStrength, Phase, Profile, Sex } from '@shared/types.ts';
+import type { Language, LinkedStrength, Phase, PicnicStatus, Profile, Sex } from '@shared/types.ts';
 import { api } from '../api.ts';
 import { useInfo, useRefreshInfo, useSetLanguage } from '../App.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
 import { parseNumber } from '../food.ts';
-import { kg, num, versionLabel } from '../format.ts';
+import { kg, longDate, num, versionLabel } from '../format.ts';
 import { getLang, t } from '../i18n.ts';
 
 type ProfileInput = Omit<Profile, 'updatedAt'>;
@@ -309,6 +309,7 @@ export default function ProfilePage() {
         )}
       </section>
 
+      <PicnicSection />
       <DataSection />
       <AboutSection />
     </main>
@@ -344,6 +345,110 @@ function StrengthSection({ onPrefill, phaseSaved }: { onPrefill: (p: NonNullable
         <button className="btn block" onClick={() => onPrefill(data.profile!)}>
           {t('Use age, height and weight from Open Strength', 'Leeftijd, lengte en gewicht uit Open Strength gebruiken')}
         </button>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Picnic (optional, experimental): link your account to add products from your recent deliveries. Your password goes
+ * to Picnic only; the app keeps the key Picnic hands out, never in the browser.
+ */
+function PicnicSection() {
+  const refreshInfo = useRefreshInfo();
+  const { data, setData } = useLoad(() => api.picnic().catch(() => null));
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+
+  const run = async (fn: () => Promise<PicnicStatus | void>, done?: string) => {
+    setBusy(true);
+    try {
+      const next = await fn();
+      if (next) setData(next);
+      if (done) toast(done);
+      refreshInfo();
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const login = () =>
+    run(async () => {
+      const s = await api.picnicLogin(email.trim(), password);
+      setPassword('');
+      // Picnic asks for a code: send it straight away.
+      if (s.awaiting2fa) await api.picnicSend2fa('SMS');
+      return s;
+    });
+
+  return (
+    <section className="section stack" aria-label="Picnic">
+      <h2>Picnic</h2>
+      {data.linked ? (
+        <>
+          <p className="muted small" style={{ margin: 0 }}>
+            {t(
+              `Linked since ${data.linkedAt ? longDate(data.linkedAt.slice(0, 10)) : ''}. Under Add food → Picnic you find what was delivered lately.`,
+              `Gekoppeld sinds ${data.linkedAt ? longDate(data.linkedAt.slice(0, 10)) : ''}. Onder Eten toevoegen → Picnic vind je wat er laatst bezorgd is.`,
+            )}
+          </p>
+          <button className="btn block" disabled={busy} onClick={() => void run(() => api.picnicUnlink(), t('Picnic unlinked', 'Picnic ontkoppeld'))}>
+            {t('Unlink Picnic', 'Picnic ontkoppelen')}
+          </button>
+        </>
+      ) : data.awaiting2fa ? (
+        <form
+          className="stack"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run(() => api.picnicVerify2fa(code.trim()), t('Picnic linked', 'Picnic gekoppeld'));
+          }}
+        >
+          <p className="muted small" style={{ margin: 0 }}>
+            {t('Picnic sent you a code by text message.', 'Picnic heeft je een code per sms gestuurd.')}
+          </p>
+          <label className="field">
+            <span>{t('Code', 'Code')}</span>
+            <input className="input num" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} />
+          </label>
+          <button className="btn primary block" disabled={busy || code.trim().length < 3}>
+            {t('Confirm', 'Bevestigen')}
+          </button>
+          <button type="button" className="link-btn small" disabled={busy} onClick={() => void run(async () => void (await api.picnicSend2fa('SMS')), t('Code sent again', 'Code opnieuw verstuurd'))}>
+            {t('Send the code again', 'Code opnieuw sturen')}
+          </button>
+        </form>
+      ) : (
+        <form
+          className="stack"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void login();
+          }}
+        >
+          <p className="muted small" style={{ margin: 0 }}>
+            {t(
+              'Optional and experimental: add products from your Picnic deliveries. Picnic has no official link, so this can stop working when Picnic changes its app. Your password goes to Picnic only and is not stored.',
+              'Optioneel en experimenteel: producten uit je Picnic-bezorgingen toevoegen. Picnic heeft geen officiële koppeling, dus dit kan ophouden als Picnic zijn app verandert. Je wachtwoord gaat alleen naar Picnic en wordt niet bewaard.',
+            )}
+          </p>
+          <label className="field">
+            <span>{t('Picnic e-mail', 'Picnic-e-mail')}</span>
+            <input className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>{t('Picnic password', 'Picnic-wachtwoord')}</span>
+            <input className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <button className="btn block" disabled={busy || !email.trim() || !password}>
+            {t('Link Picnic', 'Picnic koppelen')}
+          </button>
+        </form>
       )}
     </section>
   );
