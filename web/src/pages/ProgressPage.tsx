@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useInfo } from '../App.tsx';
 import { api } from '../api.ts';
 import { BarChart, LineChart } from '../components/Charts.tsx';
@@ -51,8 +52,11 @@ export default function ProgressPage() {
 
   return (
     <main className="page">
-      <div className="page-head">
+      <div className="page-head spread">
         <h1>{t('Progress', 'Voortgang')}</h1>
+        <Link className="link-btn" to="/week">
+          {t('Weekly report', 'Weekoverzicht')}
+        </Link>
       </div>
 
       <div className="chips" aria-label={t('Period', 'Periode')}>
@@ -140,7 +144,7 @@ export default function ProgressPage() {
                 .filter((w) => w.loggedDays > 0)
                 .reverse()
                 .map((w) => (
-                <div className="list-row" key={w.weekStart}>
+                <Link className="list-row" key={w.weekStart} to={`/week/${w.weekStart}`}>
                   <div className="grow">
                     <div className="title">{t(`Week of ${shortDate(w.weekStart)}`, `Week van ${shortDate(w.weekStart)}`)}</div>
                     <div className="sub">{t(`${w.loggedDays} days logged`, `${w.loggedDays} dagen gelogd`)}</div>
@@ -148,7 +152,7 @@ export default function ProgressPage() {
                   <span className="num muted">
                     {w.avgKcal !== null ? `${kcal(w.avgKcal)}${w.avgTargetKcal !== null ? ` / ${w.avgTargetKcal}` : ''}` : '–'}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           </>

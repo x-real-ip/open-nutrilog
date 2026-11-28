@@ -13,6 +13,7 @@ import ProgressPage from './pages/ProgressPage.tsx';
 import RecipePage from './pages/RecipePage.tsx';
 import RecipesPage from './pages/RecipesPage.tsx';
 import SavedMealsPage from './pages/SavedMealsPage.tsx';
+import WeekPage from './pages/WeekPage.tsx';
 import SourcesPage from './pages/SourcesPage.tsx';
 import TargetsPage from './pages/TargetsPage.tsx';
 import TodayPage from './pages/TodayPage.tsx';
@@ -72,6 +73,8 @@ export default function App() {
               <Route path="/diary" element={<DiaryPage />} />
               <Route path="/diary/:day" element={<DiaryPage />} />
               <Route path="/progress" element={<ProgressPage />} />
+              <Route path="/week" element={<WeekPage />} />
+              <Route path="/week/:day" element={<WeekPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/targets" element={<TargetsPage />} />
               <Route path="/recipes" element={<RecipesPage />} />

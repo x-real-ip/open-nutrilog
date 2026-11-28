@@ -5,7 +5,8 @@ import { sumNutrients } from '@shared/nutrition.ts';
 import { useInfo } from '../App.tsx';
 import { api, onQueueChange, withPending } from '../api.ts';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
-import { grams, kcal, longDate, versionLabel } from '../format.ts';
+import { IconChevron } from '../components/Icons.tsx';
+import { grams, kcal, kg, longDate, signed, versionLabel } from '../format.ts';
 import { t } from '../i18n.ts';
 
 /** A ring that fills as the day's target is eaten; red when over. */
@@ -96,6 +97,8 @@ export default function TodayPage() {
   const { data, error, loading, reload, setData } = useLoad(() => Promise.all([api.profile(), api.day(info.today), api.target(info.today)]));
   const [, setTick] = useState(0);
   useEffect(() => onQueueChange(() => setTick((n) => n + 1)), []);
+  // Last week at a glance; loaded separately, so the page never waits for it.
+  const week = useLoad(() => api.weekReport());
 
   if (loading && !data) return <Loading />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
@@ -200,6 +203,26 @@ export default function TodayPage() {
             })}
         </div>
       </section>
+
+      {week.data && week.data.completeDays > 0 && (
+        <section className="section list">
+          <Link className="list-row" to="/week" aria-label={t('Last week: weekly report', 'Vorige week: weekoverzicht')}>
+            <div className="grow">
+              <div className="title">{t('Last week', 'Vorige week')}</div>
+              <div className="sub">
+                {[
+                  week.data.avgKcal !== null ? t(`${kcal(week.data.avgKcal)} a day`, `${kcal(week.data.avgKcal)} per dag`) : null,
+                  week.data.proteinTargetDays ? t(`protein ${week.data.proteinHitDays}/${week.data.proteinTargetDays} days`, `eiwit ${week.data.proteinHitDays}/${week.data.proteinTargetDays} dagen`) : null,
+                  week.data.trendChangeKg !== null ? `${signed(week.data.trendChangeKg, kg)} kg` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+            </div>
+            <IconChevron />
+          </Link>
+        </section>
+      )}
 
       <section className="section stack">
         <Link className="btn primary big block" to="/diary">
