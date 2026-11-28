@@ -26,6 +26,8 @@ approach and adapt it. There is no shared package between the two repos; copying
   `server/db.ts`; never edit a migration that has shipped. Migrations must stay
   idempotent (`npm run migrate` runs as an init container on every rollout).
 - Single user: the profile is the row with `id = 1`.
+  A new profile field goes in `profileSchema` (`server/services/profile.ts`, with a default) and the `Profile` type;
+  the PWA takes a new profile's defaults from `GET /api/profile`, so it keeps no copy of them.
 - Nutrient maths (units, servings, totals) lives in `shared/nutrition.ts` and is used by both the server and the PWA,
   so a queued entry shows the same numbers as after the server saved it. Don't duplicate it.
 - Diary entries are written with `PUT /api/diary/entries/:id` by an id the app makes, so the offline queue can retry
@@ -78,6 +80,9 @@ approach and adapt it. There is no shared package between the two repos; copying
   "How your target is built" page shows as is: change the rule and its text together.
 - Higher days (`dayShift`) keep the week's total the same, and meal targets (`mealTargets`) only split the day's target;
   both live in `targets.ts` like every other number.
+- An own target (`kcalOverride`) replaces maintenance plus the phase but keeps the floor. The weekly average
+  (`carryOver`) is measured against each day's own target (`baseTargetKcal`), never against an already adjusted one,
+  so it can't compound; `dayTargets.ts` only gathers the earlier days of the week for it.
 - Keep the spec example green: a man of 80 kg, 180 cm, 40 years, NEAT 1.4, cutting 0.5 %/week → BMR 1730,
   base 2422, cut −440, rest-day target 1982 kcal; a 45-minute workout at MET 5.0 adds 240 → 2222 kcal; protein
   2.0 g/kg = 160 g.

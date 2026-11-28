@@ -23,7 +23,8 @@ export async function weekReport(day: string | undefined, lang: Lang): Promise<W
   const { days: all7, weights } = await daySummaries(start, end);
   const sofar = all7.filter((d) => d.date <= now);
   const complete = sofar.filter((d) => d.logged && !d.incomplete);
-  const withTarget = complete.filter((d) => d.targetKcal !== null);
+  // Measured against each day's own target: with the weekly average on, the shown target already makes up for the days before.
+  const withTarget = complete.filter((d) => d.baseTargetKcal !== null);
   const withProtein = complete.filter((d) => d.targetProteinG !== null);
 
   const trend = ewma(weights.map((w) => w.kg));
@@ -63,8 +64,8 @@ export async function weekReport(day: string | undefined, lang: Lang): Promise<W
     completeDays: complete.length,
     daysSoFar: sofar.length,
     avgKcal: avg(complete.map((d) => d.kcal)),
-    avgTargetKcal: avg(withTarget.map((d) => d.targetKcal!)),
-    balanceKcal: withTarget.length ? withTarget.reduce((sum, d) => sum + d.kcal - d.targetKcal!, 0) : null,
+    avgTargetKcal: avg(withTarget.map((d) => d.baseTargetKcal!)),
+    balanceKcal: withTarget.length ? withTarget.reduce((sum, d) => sum + d.kcal - d.baseTargetKcal!, 0) : null,
     avgProteinG: avg(complete.map((d) => d.proteinG)),
     avgCarbsG: avg(complete.map((d) => d.carbsG)),
     avgFatG: avg(complete.map((d) => d.fatG)),

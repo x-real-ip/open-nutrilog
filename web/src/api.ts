@@ -66,7 +66,7 @@ export const api = {
   login: (password: string) => request<{ ok: true }>('POST', '/api/auth/login', { password }),
   logout: () => request<{ ok: true; redirect: string | null }>('POST', '/api/auth/logout'),
 
-  profile: () => request<{ profile: Profile | null }>('GET', '/api/profile'),
+  profile: () => request<{ profile: Profile | null; defaults: Omit<Profile, 'updatedAt'> }>('GET', '/api/profile'),
   saveProfile: (p: Omit<Profile, 'updatedAt'>) => request<{ profile: Profile }>('PUT', '/api/profile', p),
 
   search: (q: string) => request<{ products: Product[] }>('GET', `/api/products/search?q=${encodeURIComponent(q)}`),

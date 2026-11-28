@@ -37,6 +37,10 @@ export interface Profile {
   workoutEnergyShare: number;
   /** Push reminders at a time of day (HH:MM); null is off. Only devices with notifications on get them. */
   reminders: { meals: { mealId: number; time: string }[]; weighIn: string | null; summary: string | null };
+  /** Your own rest-day target in kcal (1000–6000); null: worked out. Training, higher days and the weekly average still apply. */
+  kcalOverride: number | null;
+  /** Eating more or less on a day is made up on the days left in the week (at most 300 kcal a day). */
+  weekAverage: boolean;
   /** Show the fasting timer on Today, and the goal a new fast starts with. */
   fasting: boolean;
   fastingGoalHours: number;
@@ -240,6 +244,8 @@ export interface DayTarget {
   workoutKcal: number;
   isTrainingDay: boolean;
   floorHit: boolean;
+  /** The weekly average's effect on this day, when it is on. */
+  carry: { balance: number; daysLeft: number; perDay: number; capped: boolean } | null;
   workout: { minutes: number; source: 'finished' | 'in_progress' | 'planned' } | null;
   steps: TargetStep[];
 }

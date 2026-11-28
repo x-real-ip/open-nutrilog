@@ -27,30 +27,6 @@ const NEAT = (): { value: number; label: string; sub: string }[] => [
 
 const RATES: Record<Phase, number[]> = { cut: [0.25, 0.5, 0.75, 1], maintain: [], bulk: [0.25, 0.5] };
 
-const empty = (): ProfileInput => ({
-  name: '',
-  language: getLang(),
-  timeZone: '',
-  sex: null,
-  age: null,
-  heightCm: null,
-  weightKg: null,
-  neat: 1.4,
-  phase: 'maintain',
-  ratePctPerWeek: 0.5,
-  proteinGPerKg: null,
-  carbCycling: true,
-  metStrength: 5,
-  trainingMinutes: 60,
-  workoutEnergyShare: 100,
-  reminders: { meals: [], weighIn: null, summary: null },
-  fasting: false,
-  fastingGoalHours: 16,
-  shiftDays: [],
-  shiftKcal: 0,
-  mealShares: [],
-});
-
 const WEEKDAYS = (): string[] => [
   t('Mon', 'ma'),
   t('Tue', 'di'),
@@ -183,24 +159,90 @@ function RemindersSection({ value, onChange }: { value: ProfileInput['reminders'
   );
 }
 
+/** Which meals the diary shows. Saved right away, like hiding a meal from its menu in the diary. */
+function MealsSection() {
+  const { data, setData } = useLoad(() => api.meals().then((r) => r.meals));
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const shown = data.filter((m) => !m.hidden).length;
+
+  const toggle = async (id: number, name: string, hidden: boolean) => {
+    const before = data;
+    // Show the change right away; put it back if the server refuses.
+    setData(data.map((m) => (m.id === id ? { ...m, hidden } : m)));
+    setBusy(true);
+    try {
+      setData((await api.updateMeal(id, name, hidden)).meals);
+    } catch (e) {
+      setData(before);
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const add = async () => {
+    const name = prompt(t('Name of the new meal', 'Naam van de nieuwe maaltijd'))?.trim();
+    if (!name) return;
+    try {
+      setData((await api.addMeal(name)).meals);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  return (
+    <section className="section stack" aria-label={t('Meals', 'Maaltijden')}>
+      <h2>{t('Meals', 'Maaltijden')}</h2>
+      <div className="list">
+        {data.map((m) => (
+          <label key={m.id} className="list-row">
+            <input
+              type="checkbox"
+              checked={!m.hidden}
+              // At least one meal stays, or there is nowhere to log.
+              disabled={busy || (!m.hidden && shown === 1)}
+              onChange={(e) => void toggle(m.id, m.name, !e.target.checked)}
+            />
+            <span className="grow">{m.name}</span>
+          </label>
+        ))}
+      </div>
+      <button type="button" className="link-btn" onClick={() => void add()}>
+        {t('Add a meal', 'Maaltijd toevoegen')}
+      </button>
+      <p className="faint small" style={{ margin: 0 }}>
+        {t(
+          'The diary shows the meals that are ticked. A hidden meal with something logged on a day still shows on that day. Rename a meal from its menu in the diary.',
+          'Het dagboek toont de aangevinkte maaltijden. Een verborgen maaltijd waarin die dag iets gelogd is, blijft op die dag zichtbaar. Een maaltijd hernoem je via het menu ervan in het dagboek.',
+        )}
+      </p>
+    </section>
+  );
+}
+
 export default function ProfilePage() {
+  const { data, error, loading, reload } = useLoad(() => api.profile());
+  if (loading && !data) return <Loading />;
+  if (error || !data) return <ErrorState message={error ?? ''} onRetry={reload} />;
+  return <ProfileForm data={data} reload={reload} />;
+}
+
+/** The profile form. A new profile starts from the server's defaults, so a new field needs no default here. */
+function ProfileForm({ data, reload }: { data: { profile: Profile | null; defaults: ProfileInput }; reload: () => void }) {
   const info = useInfo();
   const refreshInfo = useRefreshInfo();
   const setLanguage = useSetLanguage();
-  const { data, error, loading, reload } = useLoad(() => api.profile());
   const meals = useLoad(() => api.meals().then((r) => r.meals.filter((m) => !m.hidden)));
-  const [p, setP] = useState<ProfileInput>(empty);
+  const [p, setP] = useState<ProfileInput>(() => (data.profile ? input(data.profile) : { ...data.defaults, language: getLang() }));
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const saved = data?.profile ?? null;
+  const saved = data.profile;
   const isNew = !saved;
 
   useEffect(() => {
     if (saved) setP(input(saved));
   }, [saved]);
-
-  if (loading && !data) return <Loading />;
-  if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const set = <K extends keyof ProfileInput>(k: K, v: ProfileInput[K]) => setP((cur) => ({ ...cur, [k]: v }));
 
@@ -377,7 +419,49 @@ export default function ProfilePage() {
         {p.proteinGPerKg !== null && (
           <NumberField label={t('Protein per kg body weight', 'Eiwit per kg lichaamsgewicht')} suffix="g" value={p.proteinGPerKg} onChange={(v) => set('proteinGPerKg', v ?? 1.8)} />
         )}
+        <div className="field">
+          <span>{t('Calorie target', 'Caloriedoel')}</span>
+          <div className="seg">
+            <button type="button" aria-pressed={p.kcalOverride === null} onClick={() => set('kcalOverride', null)}>
+              {t('Worked out', 'Berekend')}
+            </button>
+            <button type="button" aria-pressed={p.kcalOverride !== null} onClick={() => set('kcalOverride', p.kcalOverride ?? 2000)}>
+              {t('My own', 'Zelf instellen')}
+            </button>
+          </div>
+        </div>
+        {p.kcalOverride !== null && (
+          <>
+            <NumberField
+              label={t('My target on a rest day', 'Mijn doel op een rustdag')}
+              suffix="kcal"
+              digits={0}
+              value={p.kcalOverride}
+              onChange={(v) => set('kcalOverride', v === null ? 2000 : Math.round(v))}
+            />
+            <p className="faint small" style={{ margin: 0 }}>
+              {t(
+                'Replaces maintenance plus your pace. Training days, higher days and the weekly average still apply, and it never goes below your resting energy. The macros follow it.',
+                'Vervangt onderhoud plus je tempo. Trainingsdagen, hogere dagen en het weekgemiddelde blijven gelden, en het gaat nooit onder je ruststofwisseling. De macro’s volgen het.',
+              )}
+            </p>
+          </>
+        )}
+        <label className="row" style={{ gap: 12 }}>
+          <input type="checkbox" checked={p.weekAverage} onChange={(e) => set('weekAverage', e.target.checked)} />
+          <span>{t('Weekly average: make up for eating more or less on the days left in the week', 'Weekgemiddelde: meer of minder eten verrekenen met de resterende dagen van de week')}</span>
+        </label>
+        {p.weekAverage && (
+          <p className="faint small" style={{ margin: 0 }}>
+            {t(
+              'Eat 600 kcal more on Monday, and the six days after get 100 kcal less each; eat less, and they get more. Only days you logged completely count, at most 300 kcal a day either way, and every Monday starts fresh. Today shows when it applies.',
+              'Eet je maandag 600 kcal meer, dan krijgen de zes dagen erna elk 100 kcal minder; eet je minder, dan krijgen ze meer. Alleen volledig gelogde dagen tellen, maximaal 300 kcal per dag omhoog of omlaag, en elke maandag begint opnieuw. Vandaag laat zien wanneer het meetelt.',
+            )}
+          </p>
+        )}
       </section>
+
+      {!isNew && <MealsSection />}
 
       <section className="section stack" aria-label={t('Over the week', 'Over de week')}>
         <h2>{t('Over the week', 'Over de week')}</h2>

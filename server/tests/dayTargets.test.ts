@@ -275,6 +275,41 @@ test('week report: last week by default; complete days only; protein days; trend
   assert.equal((await call('GET', '/api/week-report?day=yesterday')).status, 400);
 });
 
+test('weekly average and an own target through the API; the week report measures against each day\'s own target', async () => {
+  await call('PUT', '/api/profile', { ...spec, weekAverage: true });
+  const wk = weekStart(addDays(today, -7));
+  await eat(wk, 2582); // 600 over on Monday
+
+  let tue = (await call('GET', `/api/targets/${addDays(wk, 1)}`)).body.target;
+  assert.equal(tue.kcal, 1882, '600 over 6 days left');
+  assert.deepEqual(tue.carry, { balance: 600, daysLeft: 6, perDay: -100, capped: false });
+  assert.ok(tue.steps.some((x: any) => x.id === 'carry'));
+  // Tuesday not logged: it counts as on target; Wednesday spreads the 600 over 5 days.
+  assert.equal((await call('GET', `/api/targets/${addDays(wk, 2)}`)).body.target.kcal, 1862);
+  assert.equal((await call('GET', `/api/targets/${wk}`)).body.target.kcal, 1982, 'Monday itself has nothing before it');
+  // An incomplete day doesn't count.
+  await call('PUT', `/api/days/${wk}/mark`, { incomplete: true });
+  assert.equal((await call('GET', `/api/targets/${addDays(wk, 1)}`)).body.target.kcal, 1982);
+  await call('PUT', `/api/days/${wk}/mark`, { incomplete: false });
+
+  // The same in progress and the week report, which measures against the day's own target.
+  const r = (await call('GET', `/api/week-report?day=${wk}`)).body;
+  assert.deepEqual(r.days.slice(0, 3).map((d: any) => d.targetKcal), [1982, 1882, 1862]);
+  assert.equal(r.balanceKcal, 600);
+  assert.equal(r.avgTargetKcal, 1982);
+
+  // Off again: no carry.
+  await call('PUT', '/api/profile', spec);
+  tue = (await call('GET', `/api/targets/${addDays(wk, 1)}`)).body.target;
+  assert.equal(tue.kcal, 1982);
+  assert.equal(tue.carry, null);
+
+  // Your own target.
+  await call('PUT', '/api/profile', { ...spec, kcalOverride: 2100 });
+  assert.equal((await call('GET', `/api/targets/${today}`)).body.target.kcal, 2100);
+  assert.equal((await call('PUT', '/api/profile', { ...spec, kcalOverride: 500 })).status, 400);
+});
+
 test('marks, weights and the maintenance history survive export and import', async () => {
   await call('PUT', '/api/profile', spec);
   await call('PUT', `/api/days/${today}/mark`, { training: true, incomplete: true });
