@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Product, RecipeInput } from '@shared/types.ts';
 import { NUTRIENT_KEYS, quantityOf, round, scale, type Nutrients } from '@shared/nutrition.ts';
-import { api } from '../api.ts';
+import { api, ApiError } from '../api.ts';
+import { BarcodeScanner } from '../components/BarcodeScanner.tsx';
+import { ProductForm } from '../components/ProductForm.tsx';
 import { AddFoodSheet, SourceBadge } from '../components/AddFoodSheet.tsx';
 import { IconBack, IconClose, IconPlus } from '../components/Icons.tsx';
 import { ErrorState, Loading, toast } from '../components/ui.tsx';
@@ -44,6 +46,15 @@ export default function RecipePage() {
   const [cooked, setCooked] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [picking, setPicking] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  /** A new product made while building the recipe (unknown barcode, "New", a Picnic draft); it becomes an ingredient. */
+  const [newProduct, setNewProduct] = useState<{
+    name?: string;
+    barcode?: string | null;
+    brand?: string;
+    unit?: 'g' | 'ml';
+    hint?: { title: string; text: string | null } | null;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -78,6 +89,23 @@ export default function RecipePage() {
     portionCount > 0 &&
     (cooked.trim() === '' || (cookedWeight !== null && cookedWeight > 0)) &&
     lines.every((l) => (parseNumber(l.amount) ?? 0) > 0);
+
+  /** A new ingredient: one serving when the product has servings, otherwise 100 g/ml. */
+  const addLine = (p: Product) =>
+    setLines((ls) => [...ls, { product: p, amount: p.servings.length ? '1' : '100', unit: p.servings.length ? 'serving' : p.unit, servingLabel: p.servings[0]?.label ?? null }]);
+
+  /** A scanned barcode: the product becomes an ingredient; an unknown one opens a new product with the barcode filled in. */
+  const scanned = async (code: string) => {
+    setScanning(false);
+    try {
+      const { product } = await api.barcode(code);
+      addLine(product);
+      toast(t(`Added: ${product.name}`, `Toegevoegd: ${product.name}`));
+    } catch (e) {
+      toast((e as Error).message);
+      if (e instanceof ApiError && e.status === 404) setNewProduct({ barcode: code });
+    }
+  };
 
   const setLine = (i: number, change: Partial<Line>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...change } : l)));
 
@@ -222,8 +250,35 @@ export default function RecipePage() {
         allowRecipes={false}
         onClose={() => setPicking(false)}
         onPick={(p) => {
-          setLines((ls) => [...ls, { product: p, amount: p.servings.length ? '1' : '100', unit: p.servings.length ? 'serving' : p.unit, servingLabel: p.servings[0]?.label ?? null }]);
+          addLine(p);
           setPicking(false);
+        }}
+        onScan={() => {
+          setPicking(false);
+          setScanning(true);
+        }}
+        onNewProduct={(name) => {
+          setPicking(false);
+          setNewProduct({ name });
+        }}
+        onPicnicDraft={(d) => {
+          setPicking(false);
+          setNewProduct({ name: d.name, brand: d.brand, unit: d.unit, hint: { title: t('Picnic says', 'Volgens Picnic'), text: d.nutritionText } });
+        }}
+      />
+      <BarcodeScanner open={scanning} onClose={() => setScanning(false)} onCode={(code) => void scanned(code)} />
+      <ProductForm
+        open={newProduct !== null}
+        product={null}
+        initialName={newProduct?.name}
+        initialBarcode={newProduct?.barcode}
+        initialBrand={newProduct?.brand}
+        initialUnit={newProduct?.unit}
+        hint={newProduct?.hint}
+        onClose={() => setNewProduct(null)}
+        onSaved={(p) => {
+          setNewProduct(null);
+          addLine(p);
         }}
       />
     </main>

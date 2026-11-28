@@ -47,6 +47,9 @@ export default defineConfig({
         AI_API_KEY: 'e2e-not-a-real-key',
         AI_BASE_URL: 'http://127.0.0.1:18091',
         AI_MODEL: 'claude-haiku-5-5',
+        // Open Food Facts too: the barcode lookups and the live search go to the fake.
+        OFF_BASE_URL: 'http://127.0.0.1:18091',
+        OFF_SEARCH_URL: 'http://127.0.0.1:18091/search',
       },
     },
   ],

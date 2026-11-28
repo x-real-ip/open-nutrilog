@@ -1,11 +1,22 @@
-// A stand-in for the Anthropic Messages API during the browser tests: it reads a meal as two foods and makes
-// the coach suggest a slower cut. Started by playwright.config.ts next to the app.
+// Stand-ins for the outside services during the browser tests, so they never need the internet:
+// - the Anthropic Messages API: it reads a meal as two foods and makes the coach suggest a slower cut;
+// - Open Food Facts: no product knows any barcode, and the search finds nothing.
+// Started by playwright.config.ts next to the app.
 import http from 'node:http';
 
 const port = Number(process.env.FAKE_AI_PORT ?? 18091);
 
 http
   .createServer((req, res) => {
+    const path = new URL(req.url ?? '/', 'http://x').pathname;
+    if (path.startsWith('/api/v2/product/')) {
+      res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ status: 0, status_verbose: 'product not found' }));
+      return;
+    }
+    if (path === '/search') {
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hits: [] }));
+      return;
+    }
     if (req.method !== 'POST') {
       res.writeHead(200).end('fake ai');
       return;
