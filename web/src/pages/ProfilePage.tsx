@@ -432,6 +432,16 @@ function AboutSection() {
     <section className="section stack">
       <h2>{t('About the app', 'Over de app')}</h2>
       <div className="list">
+        <Link className="list-row" to="/ai">
+          <div className="grow">
+            <div className="title">{t('AI settings and usage', 'AI-instellingen en verbruik')}</div>
+            <div className="sub">
+              {info.aiConfigured
+                ? t(`On: ${info.aiModel}`, `Aan: ${info.aiModel}`)
+                : t('Off: describing or photographing meals is off, the coach shows facts', 'Uit: maaltijden beschrijven of fotograferen staat uit, de coach toont feiten')}
+            </div>
+          </div>
+        </Link>
         <Link className="list-row" to="/recipes">
           <div className="grow">
             <div className="title">{t('My recipes', 'Mijn recepten')}</div>

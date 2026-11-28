@@ -26,7 +26,10 @@ function list(name: string): string[] {
     .filter(Boolean);
 }
 
+export type AiProvider = 'anthropic' | 'openai';
 export type AuthMode = 'none' | 'password' | 'proxy' | 'oidc';
+
+const provider: AiProvider = str('AI_PROVIDER') === 'openai' ? 'openai' : 'anthropic';
 
 function authMode(): AuthMode {
   const m = str('AUTH_MODE')?.toLowerCase();
@@ -100,6 +103,15 @@ export const config = {
     // Optional allowlists, checked against username/email and the groups claim/header.
     allowedUsers: list('ALLOWED_USERS').map((u) => u.toLowerCase()),
     allowedGroups: list('ALLOWED_GROUPS'),
+  },
+
+  /** Environment defaults for AI; the settings page overrides them (services/aiSettings.ts). */
+  ai: {
+    provider,
+    apiKey: str('AI_API_KEY') ?? str('ANTHROPIC_API_KEY') ?? str('OPENAI_API_KEY') ?? '',
+    baseUrl: (str('AI_BASE_URL') ?? (provider === 'anthropic' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1')).replace(/\/$/, ''),
+    model: str('AI_MODEL') ?? (provider === 'anthropic' ? 'claude-sonnet-5-5' : 'gpt-4o-mini'),
+    timeoutMs: num('AI_TIMEOUT_MS', 120_000),
   },
 
   /** Open Food Facts: barcode lookups (and later the live search) go to this API. */

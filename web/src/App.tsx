@@ -4,6 +4,8 @@ import type { AppInfo, Language } from '@shared/types.ts';
 import { api } from './api.ts';
 import { getLang, setLang } from './i18n.ts';
 import { BottomNav, ErrorState, Loading, ToastHost } from './components/ui.tsx';
+import AiPage from './pages/AiPage.tsx';
+import CoachPage from './pages/CoachPage.tsx';
 import DiaryPage from './pages/DiaryPage.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
@@ -74,6 +76,8 @@ export default function App() {
               <Route path="/recipes" element={<RecipesPage />} />
               <Route path="/recipes/:id" element={<RecipePage />} />
               <Route path="/sources" element={<SourcesPage />} />
+              <Route path="/coach" element={<CoachPage />} />
+              <Route path="/ai" element={<AiPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

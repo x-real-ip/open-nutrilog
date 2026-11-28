@@ -39,6 +39,9 @@ export interface Profile {
 }
 
 export interface AppInfo {
+  aiConfigured: boolean;
+  aiProvider: string;
+  aiModel: string;
   authMode: AuthMode;
   authRequired: boolean;
   authenticated: boolean;
@@ -156,7 +159,7 @@ export interface EntryInput {
   amount: number;
   unit: EntryUnit;
   servingLabel?: string | null;
-  quick?: { name: string; kcal: number; protein: number | null; carbs: number | null; fat: number | null } | null;
+  quick?: { name: string; kcal: number; protein: number | null; carbs: number | null; fat: number | null; aiEstimate?: boolean } | null;
 }
 
 export interface DiaryEntry extends EntryInput {
@@ -268,4 +271,99 @@ export interface LinkedStrength {
   clash: string | null;
   /** Weigh-ins waiting to be sent. */
   pendingWeights: number;
+}
+
+// ---------- AI ----------
+
+export type AiProviderId = 'anthropic' | 'openai';
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type AiFeature = 'parse' | 'photo' | 'coach' | 'test';
+
+/** AI settings as the settings page sees them. The API key itself is never sent to the browser. */
+export interface AiSettingsView {
+  provider: AiProviderId;
+  model: string;
+  /** Only for OpenAI-compatible servers (Ollama, LM Studio, ...); empty means the provider default. */
+  baseUrl: string;
+  /** Where the key comes from: saved in the app, the server environment, or nowhere. */
+  keySource: 'app' | 'env' | null;
+  /** Last characters of the key, e.g. "…a1b2". */
+  keyHint: string | null;
+  /** null means: let the model use its own default. */
+  coachEffort: Effort | null;
+  /** Reading a meal from text or a photo. */
+  parseEffort: Effort | null;
+  /** Stop AI calls once this month's estimated cost reaches this (USD). null means no limit. */
+  monthlyBudgetUsd: number | null;
+  /** Keep meal photos after they were read. */
+  storePhotos: boolean;
+  configured: boolean;
+  /** Known Claude models with their list price per million tokens. */
+  models: { id: string; label: string; inputUsd: number; outputUsd: number }[];
+}
+
+export interface AiSettingsUpdate {
+  provider?: AiProviderId;
+  model?: string;
+  baseUrl?: string;
+  /** A new key, or null to remove the key saved in the app (the server key then applies again). */
+  apiKey?: string | null;
+  coachEffort?: Effort | null;
+  parseEffort?: Effort | null;
+  monthlyBudgetUsd?: number | null;
+  storePhotos?: boolean;
+}
+
+export interface AiUsageEntry {
+  id: number;
+  createdAt: string;
+  feature: AiFeature;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  /** Estimated from the list price; null when the price is unknown (e.g. a local model). */
+  costUsd: number | null;
+  ok: boolean;
+  error: string | null;
+}
+
+export interface AiUsageSummary {
+  month: { start: string; calls: number; inputTokens: number; outputTokens: number; costUsd: number; failed: number };
+  previousMonthCostUsd: number;
+  budgetUsd: number | null;
+  byFeature: { feature: AiFeature; calls: number; costUsd: number; inputTokens: number; outputTokens: number }[];
+  daily: { day: string; costUsd: number; calls: number }[];
+  recent: AiUsageEntry[];
+  /** True when some calls used a model without a known price. */
+  hasUnpricedCalls: boolean;
+}
+
+/** A change to the phase the coach suggests; it only takes effect through the target engine and your confirmation. */
+export interface PhaseSuggestion {
+  phase: Phase;
+  ratePctPerWeek: number;
+}
+
+export interface CoachMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  suggestion: PhaseSuggestion | null;
+  createdAt: string;
+}
+
+/** One food the AI read from your text or photo, matched to products here. */
+export interface MealLine {
+  /** What the AI called it. */
+  name: string;
+  /** The AI's guess of the amount, in grams (ml for drinks). */
+  grams: number;
+  /** Matches from the normal search, best first. */
+  candidates: Product[];
+  /** The AI's own estimate of the nutrients for this amount; used only when you pick no product. */
+  estimate: { kcal: number; protein: number | null; carbs: number | null; fat: number | null } | null;
+}
+
+export interface MealProposal {
+  lines: MealLine[];
 }

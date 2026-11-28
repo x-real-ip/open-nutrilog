@@ -174,9 +174,11 @@ function targetView(t: Target, workout: Workout | null, lang: Lang): DayTarget {
 // ---------- Targets ----------
 
 /** The target for one day, with how it was built. Without sex, age, height and weight there is no target yet. */
-export async function targetFor(day: string): Promise<TargetResponse> {
+export async function targetFor(day: string, changes: Partial<Pick<Profile, 'phase' | 'ratePctPerWeek'>> = {}): Promise<TargetResponse> {
   z.string().regex(DAY_PATTERN).parse(day);
-  const p = await getProfile();
+  const saved = await getProfile();
+  // `changes` shows what a different phase would give (the coach's suggestion), without saving anything.
+  const p = saved ? { ...saved, ...changes } : null;
   const lang = langOf(p);
   const mark = (await getMarks(day, day)).get(day) ?? { training: null, incomplete: false };
   const ws = await weighIns();

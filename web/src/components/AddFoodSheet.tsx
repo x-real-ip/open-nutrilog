@@ -54,6 +54,8 @@ export function AddFoodSheet({
   onScan,
   onQuickAdd,
   onNewProduct,
+  onDescribe,
+  onPhoto,
   allowRecipes = true,
 }: {
   open: boolean;
@@ -64,6 +66,9 @@ export function AddFoodSheet({
   onScan?: () => void;
   onQuickAdd?: () => void;
   onNewProduct?: (name: string) => void;
+  /** Only when AI is on: describe or photograph the meal. */
+  onDescribe?: () => void;
+  onPhoto?: () => void;
   /** A recipe can't be an ingredient of another recipe. */
   allowRecipes?: boolean;
 }) {
@@ -150,6 +155,20 @@ export function AddFoodSheet({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        {(onDescribe || onPhoto) && (
+          <div className="grid-2">
+            {onDescribe && (
+              <button className="btn" onClick={onDescribe}>
+                {t('Describe', 'Beschrijven')}
+              </button>
+            )}
+            {onPhoto && (
+              <button className="btn" onClick={onPhoto}>
+                {t('Photo', 'Foto')}
+              </button>
+            )}
+          </div>
+        )}
         {(onScan || onQuickAdd || onNewProduct) && (
           <div className="grid-3">
             {onScan && (

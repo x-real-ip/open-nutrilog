@@ -22,18 +22,32 @@ export default defineConfig({
     { name: 'phone', use: { ...devices['Pixel 7'] } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
   ],
-  webServer: {
-    command: 'node --disable-warning=ExperimentalWarning server/index.ts',
-    cwd: '..',
-    url: `http://127.0.0.1:${port}/healthz`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-    env: {
-      PORT: String(port),
-      AUTH_MODE: 'none',
-      MIGRATE_ON_START: 'true',
-      WEB_DIR: 'web/dist',
-      DATABASE_URL: process.env.E2E_DATABASE_URL ?? 'postgres://open_nutrilog:open_nutrilog@127.0.0.1:5432/open_nutrilog',
+  webServer: [
+    // A fake AI provider, so the AI flows are tested without a key or the internet.
+    {
+      command: 'node e2e/fake-ai.mjs',
+      cwd: '..',
+      url: 'http://127.0.0.1:18091/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
     },
-  },
+    {
+      command: 'node --disable-warning=ExperimentalWarning server/index.ts',
+      cwd: '..',
+      url: `http://127.0.0.1:${port}/healthz`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+      env: {
+        PORT: String(port),
+        AUTH_MODE: 'none',
+        MIGRATE_ON_START: 'true',
+        WEB_DIR: 'web/dist',
+        DATABASE_URL: process.env.E2E_DATABASE_URL ?? 'postgres://open_nutrilog:open_nutrilog@127.0.0.1:5432/open_nutrilog',
+        AI_PROVIDER: 'anthropic',
+        AI_API_KEY: 'e2e-not-a-real-key',
+        AI_BASE_URL: 'http://127.0.0.1:18091',
+        AI_MODEL: 'claude-haiku-5-5',
+      },
+    },
+  ],
 });

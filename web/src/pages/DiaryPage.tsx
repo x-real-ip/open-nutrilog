@@ -8,6 +8,7 @@ import { AddFoodSheet } from '../components/AddFoodSheet.tsx';
 import { AmountSheet } from '../components/AmountSheet.tsx';
 import { BarcodeScanner } from '../components/BarcodeScanner.tsx';
 import { IconBack, IconChevron, IconPlus } from '../components/Icons.tsx';
+import { MealAiSheet } from '../components/MealAiSheet.tsx';
 import { MealSheet } from '../components/MealSheet.tsx';
 import { ProductForm } from '../components/ProductForm.tsx';
 import { QuickAddSheet } from '../components/QuickAddSheet.tsx';
@@ -25,6 +26,7 @@ type SheetState =
   | { kind: 'product'; mealId: number; product: Product | null; name?: string; barcode?: string | null; entry: DiaryEntry | null }
   | { kind: 'scan'; mealId: number }
   | { kind: 'meal'; meal: Meal }
+  | { kind: 'ai'; mode: 'text' | 'photo'; mealId: number }
   | null;
 
 /** One day of the diary. "Today" comes from the server, so it follows the profile's time zone. */
@@ -38,8 +40,15 @@ export default function DiaryPage() {
   const [sheet, setSheet] = useState<SheetState>(null);
   const [, setTick] = useState(0);
 
-  // Queued changes show right away; when the queue has been sent, reload what the server has.
-  useEffect(() => onQueueChange(() => (pendingCount() === 0 ? void reload() : setTick((n) => n + 1))), [day]);
+  // Queued changes show right away (the overlay); after each send, reload what the server has.
+  useEffect(
+    () =>
+      onQueueChange(() => {
+        setTick((n) => n + 1);
+        void reload();
+      }),
+    [day],
+  );
 
   if (loading && !data) return <Loading />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
@@ -135,7 +144,10 @@ export default function DiaryPage() {
                   <button key={e.id} className={`list-row entry${view.pendingIds.has(e.id) ? ' pending' : ''}`} onClick={() => void openEntry(e)}>
                     <div className="grow">
                       <div className="title">{e.name}</div>
-                      <div className="sub">{[amountLabel(e), e.brand].filter(Boolean).join(' · ')}</div>
+                      <div className="sub">
+                        {[amountLabel(e), e.brand].filter(Boolean).join(' · ')}
+                        {e.aiEstimate && <span className="badge estimate">{t('AI estimate', 'AI-schatting')}</span>}
+                      </div>
                     </div>
                     <span className="num">{Math.round(e.nutrients.kcal)}</span>
                   </button>
@@ -189,6 +201,8 @@ export default function DiaryPage() {
         onScan={() => sheet?.kind === 'add' && setSheet({ kind: 'scan', mealId: sheet.mealId })}
         onQuickAdd={() => sheet?.kind === 'add' && setSheet({ kind: 'quick', mealId: sheet.mealId, entry: null })}
         onNewProduct={(name) => sheet?.kind === 'add' && setSheet({ kind: 'product', mealId: sheet.mealId, product: null, name, entry: null })}
+        onDescribe={info.aiConfigured ? () => sheet?.kind === 'add' && setSheet({ kind: 'ai', mode: 'text', mealId: sheet.mealId }) : undefined}
+        onPhoto={info.aiConfigured ? () => sheet?.kind === 'add' && setSheet({ kind: 'ai', mode: 'photo', mealId: sheet.mealId }) : undefined}
       />
       <AmountSheet
         open={sheet?.kind === 'amount'}
@@ -216,6 +230,14 @@ export default function DiaryPage() {
         onSaved={(product) => sheet?.kind === 'product' && setSheet({ kind: 'amount', mealId: sheet.mealId, product, entry: sheet.entry })}
       />
       <BarcodeScanner open={sheet?.kind === 'scan'} onClose={() => setSheet(null)} onCode={(code) => sheet?.kind === 'scan' && void onBarcode(code, sheet.mealId)} />
+      <MealAiSheet
+        open={sheet?.kind === 'ai'}
+        mode={sheet?.kind === 'ai' ? sheet.mode : 'text'}
+        day={day}
+        mealId={sheet?.kind === 'ai' ? sheet.mealId : 1}
+        mealName={sheet?.kind === 'ai' ? mealName(sheet.mealId) : ''}
+        onClose={() => setSheet(null)}
+      />
       <MealSheet
         open={sheet?.kind === 'meal'}
         meal={sheet?.kind === 'meal' ? sheet.meal : null}

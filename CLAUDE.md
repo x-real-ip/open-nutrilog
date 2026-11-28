@@ -80,6 +80,18 @@ approach and adapt it. There is no shared package between the two repos; copying
   base 2422, cut −440, rest-day target 1982 kcal; a 45-minute workout at MET 5.0 adds 240 → 2222 kcal; protein
   2.0 g/kg = 160 g.
 
+## AI
+
+- Claude calls go through the official `@anthropic-ai/sdk` (`server/services/ai.ts`); other providers through the
+  OpenAI-compatible chat API. Every call is recorded in `ai_usage`; the monthly budget stops the AI.
+- AI settings saved in the app (`services/aiSettings.ts`, settings key `ai`) win over `AI_*` environment variables.
+  Never send the API key to the browser. Keep `MODEL_PRICES` in line with the published price list.
+- The AI never sets targets and never logs anything by itself: meal input returns a proposal the user confirms, with
+  products matched by the normal search; AI nutrient estimates are used only without a match and are stored with
+  `ai_estimate`. A coach suggestion (`SUGGESTION {...}`) is only previewed through `targetFor()` and saved after the
+  user confirms. Photos are kept only when `storePhotos` is on.
+- The e2e tests run against `e2e/fake-ai.mjs`, never a real provider.
+
 ## Integration with Open Strength
 
 - Both apps work fully when the other is down or not configured; linked features degrade quietly. Never block a

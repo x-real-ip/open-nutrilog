@@ -13,6 +13,8 @@ import { dataRoutes } from './routes/data.ts';
 import { foodRoutes } from './routes/food.ts';
 import { targetRoutes } from './routes/targets.ts';
 import { integrationRoutes } from './routes/integration.ts';
+import { aiRoutes } from './routes/ai.ts';
+import { settingsRoutes } from './routes/settings.ts';
 
 export async function buildApp(opts: { logger?: boolean | { level: string } } = {}) {
   const app = Fastify({ logger: opts.logger ?? false, trustProxy: true, bodyLimit: 2 * 1024 * 1024 });
@@ -21,7 +23,7 @@ export async function buildApp(opts: { logger?: boolean | { level: string } } = 
   app.addHook('onRequest', authHook);
 
   app.setErrorHandler(async (err: any, _req, reply) => {
-    // Errors carry English and Dutch text (UserError); the profile decides which one is shown.
+    // Errors carry English and Dutch text (UserError, AiError); the profile decides which one is shown.
     const lang = langOf(await getProfile().catch(() => null));
     if (err instanceof ZodError) {
       const issues = err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
@@ -38,6 +40,8 @@ export async function buildApp(opts: { logger?: boolean | { level: string } } = 
   await app.register(foodRoutes);
   await app.register(targetRoutes);
   await app.register(integrationRoutes);
+  await app.register(settingsRoutes);
+  await app.register(aiRoutes);
 
   // Serve the built PWA with an SPA fallback.
   if (fs.existsSync(path.join(config.webDir, 'index.html'))) {

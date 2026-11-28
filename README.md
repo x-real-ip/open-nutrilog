@@ -2,7 +2,7 @@
 
 A personal, self-hosted calorie and nutrition tracker: a food diary with search, barcode scanning and recipes, daily targets from a deterministic engine, and a link with the strength training app [Open Strength](https://github.com/x-real-ip/open-strength). Mobile-first and fine in a desktop browser (sidebar from 900 px), dark theme, installable as a PWA. Runs in the homelab cluster with PostgreSQL (CloudNativePG) and is deployed through [`x-real-ip/gitops`](https://github.com/x-real-ip/gitops).
 
-> Work in progress. Sign-in, the food diary, your own products and recipes, Open Food Facts and NEVO, daily targets, progress and the link with Open Strength work. The AI features follow.
+> Sign-in, the food diary, your own products and recipes, Open Food Facts and NEVO, daily targets, progress, the link with Open Strength and the optional AI features all work.
 
 ## Contents
 
@@ -28,7 +28,14 @@ A personal, self-hosted calorie and nutrition tracker: a food diary with search,
 - **Targets**: a daily energy and macro target from your profile (sex, age, height, weight, activity outside training, goal and pace). The Today screen shows what is left, protein, carbohydrates and fat against their targets, and whether it is a training day. *Training today* raises the target before you train. *How your target is built* explains every step with your numbers.
 - **Progress**: weigh-ins with a smoothed trend and the change per week, energy eaten against the target per day and per week, average macros and protein per kg, and your maintenance per week.
 - **Open Strength (optional)**: linked with [Open Strength](https://github.com/x-real-ip/open-strength), its workouts make a day a training day by themselves (a running workout already counts) and add their energy to the target; *Don't count it* is there for the odd day it shouldn't. This app keeps your body weight: weigh-ins here are sent there (and Open Strength's arrive here), so its starting weights use your current weight; on the first link its weigh-in history comes over once. The profile shows the link, Open Strength's training goal, a gentle note when goal and phase pull different ways, and a button to take age, height and weight from there. Open Strength in turn shows your nutrition phase, uses the last two weeks of eating as context for its coach and program design, and explains stalls with it, without ever changing its weights. Without the link, or when Open Strength is down, you mark training days yourself and nothing else changes.
+- **Describe or photograph a meal (AI, optional)**: "2 slices of wholemeal bread with cheese and an apple", or a photo. The AI only lists foods and amounts; the server matches each food to products here through the normal search, and you check every line (another match, another amount, or skip) before anything is logged. Only a food with no match uses the AI's own estimate, and that entry is marked *AI estimate*. A photo is scaled down in the browser first and goes to your AI provider to be read; it is not kept unless you turn that on.
+- **Nutrition coach (AI, optional)**: a chat that sees your targets and how they are built, your last two weeks, your weight trend and, when linked, your training in Open Strength. It explains but never sets targets: a suggested phase or pace comes with *Apply…*, which shows what the target engine makes of it, and only *Confirm* saves it. Without AI it shows the facts.
 - **Data**: export everything as JSON (without NEVO data) and import such a file again (that replaces all data, NEVO stays); the diary as CSV. *Sources* under Profile shows where the data comes from, with the required attributions.
+
+AI is optional: without a key everything works, just without describing or photographing meals, and the coach shows facts.
+
+- **AI settings** (Profile → AI settings and usage): provider (Claude through the official Anthropic SDK, or any OpenAI-compatible API such as Ollama), model, API key, how much the model thinks (separately for the coach and for reading meals), keeping meal photos, and a monthly budget. These settings live in the database and take precedence over the environment variables. The key is never sent to the browser. *Test connection* checks key and model.
+- **Usage**: every AI call is recorded with tokens and estimated cost. You see this month, per feature, per day and the latest calls. When the monthly budget is used up, the AI stops until next month.
 
 ### How targets work
 
@@ -159,6 +166,9 @@ All settings are environment variables. For local use they are in `.env.example`
 | `ALLOWED_USERS`, `ALLOWED_GROUPS` | Optional allowlists (comma-separated) for `oidc` and `proxy`. `ALLOWED_USERS` matches the username or email address |
 | `OFF_BASE_URL`, `OFF_TIMEOUT_MS`, `OFF_REFRESH_DAYS` | Open Food Facts API (`https://world.openfoodfacts.org`), request timeout (8000 ms) and how old a cached product may get before it is fetched again (30 days) |
 | `INTEGRATION_TOKEN`, `STRENGTH_URL`, `STRENGTH_TOKEN`, `STRENGTH_TIMEOUT_MS` | The optional link with Open Strength (see [Linking with Open Strength](#linking-with-open-strength)) |
+| `AI_PROVIDER` | `anthropic` (Claude, the default) or `openai` (any OpenAI-compatible API). Like the other `AI_*` variables only a default: the AI settings in the app take precedence |
+| `ANTHROPIC_API_KEY` or `AI_API_KEY` | AI key; stays on the server |
+| `AI_MODEL`, `AI_BASE_URL`, `AI_TIMEOUT_MS` | Model (`claude-sonnet-5-5` by default, or `gpt-4o-mini` for `openai`), endpoint, timeout |
 | `OFF_DUMP_URL`, `OFF_IMPORT_COUNTRIES` | The CSV export `npm run import:off` streams, and the `countries_tags` it keeps (`en:netherlands,en:belgium`) |
 
 ## Backup, export and migration
@@ -193,6 +203,11 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
     dayTargets.ts         gathers the engine's inputs (profile, weigh-ins, marks, intake) and builds progress
     bodyWeight.ts         weigh-ins; the latest is the profile weight; sent to Open Strength when linked
     strength.ts           the link with Open Strength: workouts, profile, goal clash, weigh-in outbox
+    ai.ts                 provider abstraction (Anthropic SDK, OpenAI-compatible), text and images
+    aiSettings.ts         AI settings in the app over the environment, price list
+    aiUsage.ts            every call recorded; usage summary and the monthly budget
+    mealAi.ts             a meal from text or a photo: foods and amounts, matched to products here
+    coach.ts              the nutrition coach: facts as context, suggestions split off for the target engine
     dataExport.ts         JSON export and import (NEVO left out, references kept by code), diary CSV
   scripts/                import:nevo and import:off
   tests/                  node:test with embedded Postgres, a fake OFF and a local OIDC provider; synthetic fixtures only
