@@ -48,6 +48,7 @@ Targets are **never set by the AI**. They come from a deterministic engine (`ser
 - **Maintenance without training** = BMR × your activity outside training (1.2 mostly sitting, 1.4 some walking, 1.55 on your feet a lot, 1.7 physical work). Training is not in this number, so it is never counted twice.
 - **Goal**: `pace × kg × 7700 / 7` kcal a day less (cut) or more (bulk). The pace is capped at 1 % of body weight a week for a cut and 0.5 % for a bulk.
 - **Training days**: a day you mark as *Training today* (with your usual training length), or later a workout from Open Strength. It adds `(MET − 1) × kg × hours` (net MET, so the resting part isn't counted twice; MET 5.0 for strength training, at most 2 hours), of which 0, 50 or 100 % counts. With carb cycling on, that energy goes to carbohydrates.
+- **Fasting (optional)**: turn on the fasting timer in the profile and it shows on Today: start a fast with a goal (12 to 20 hours), see how long it has run and when the goal is reached, end it. On the fasting page you can set an earlier start, change the goal and see or remove earlier fasts. It only keeps time; targets stay the same.
 - **Macros**: protein 1.8 g/kg (2.0 on a cut) or your own setting; fat at least 25 % of the energy; carbohydrates the rest.
 - **Safety floor**: the target never goes below your resting energy; the app says so gently when that happens.
 - **Your own maintenance**: after 14 days with at least 10 complete days logged and 8 weigh-ins, the app works out your maintenance from your own data (average intake minus the energy in the change of your trend weight, an EWMA with α 0.1, minus the training energy credited on those days). It is blended with the formula as data grows and moves at most 150 kcal a week. Days you mark as incomplete in the diary are left out.
@@ -206,6 +207,7 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
     savedMeals.ts         saved meals (a fixed set of foods logged in one tap)
     targets.ts            the target engine: pure functions, BMR, phases, training, macros, adaptive maintenance
     dayTargets.ts         gathers the engine's inputs (profile, weigh-ins, marks, intake) and builds progress
+    fasting.ts            the fasting timer: one fast at a time, start and end up to 72 hours back
     bodyWeight.ts         weigh-ins; the latest is the profile weight; sent to Open Strength when linked
     strength.ts           the link with Open Strength: workouts, profile, goal clash, weigh-in outbox
     ai.ts                 provider abstraction (Anthropic SDK, OpenAI-compatible), text and images

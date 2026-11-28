@@ -35,6 +35,9 @@ export interface Profile {
   trainingMinutes: number;
   /** How much of the workout energy counts: 0, 50 or 100 %. */
   workoutEnergyShare: number;
+  /** Show the fasting timer on Today, and the goal a new fast starts with. */
+  fasting: boolean;
+  fastingGoalHours: number;
   updatedAt?: string;
 }
 
@@ -280,6 +283,23 @@ export interface ProgressResponse {
   /** Over the last 7 complete logged days. */
   averages: { days: number; kcal: number; proteinG: number; carbsG: number; fatG: number } | null;
   tdee: { weekStart: string; baseKcal: number; formulaKcal: number; adaptiveKcal: number | null }[];
+}
+
+/** A fast: running while `endedAt` is null. Times are instants (ISO). */
+export interface Fast {
+  id: number;
+  startedAt: string;
+  endedAt: string | null;
+  goalHours: number;
+  /** Hours so far (running) or in total (ended). */
+  hours: number;
+  reached: boolean;
+}
+
+export interface FastingState {
+  current: Fast | null;
+  /** The last ended fasts, newest first. */
+  recent: Fast[];
 }
 
 // ---------- Open Strength ----------

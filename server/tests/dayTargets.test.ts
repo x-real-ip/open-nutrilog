@@ -170,6 +170,50 @@ test('progress: intake against target per day and week, weight trend, averages',
   assert.equal((await call('GET', '/api/progress?days=2')).status, 400);
 });
 
+test('fasting: start (also back in time), change, end; one at a time; history; export', async () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+  assert.deepEqual((await call('GET', '/api/fasting')).body, { current: null, recent: [] });
+
+  let r = (await call('POST', '/api/fasting/start', { goalHours: 16, startedAt: hoursAgo(10) })).body;
+  assert.equal(r.current.goalHours, 16);
+  assert.ok(Math.abs(r.current.hours - 10) < 0.05, String(r.current.hours));
+  assert.equal(r.current.reached, false);
+  assert.equal((await call('POST', '/api/fasting/start', { goalHours: 16 })).status, 400, 'one at a time');
+
+  // You started earlier than you said: change the start; and the goal.
+  r = (await call('PUT', '/api/fasting/current', { startedAt: hoursAgo(17), goalHours: 18 })).body;
+  assert.ok(Math.abs(r.current.hours - 17) < 0.05);
+  assert.equal(r.current.goalHours, 18);
+
+  r = (await call('POST', '/api/fasting/end', { endedAt: hoursAgo(-0) })).body;
+  assert.equal(r.current, null);
+  assert.equal(r.recent.length, 1);
+  assert.equal(r.recent[0].reached, false, '17 of 18 hours');
+  r = (await call('POST', '/api/fasting/start', { goalHours: 12 })).body;
+  r = (await call('POST', '/api/fasting/end', {})).body;
+  assert.equal(r.recent.length, 2);
+  assert.equal(r.recent[0].goalHours, 12, 'newest first');
+
+  // Bad times and states.
+  assert.equal((await call('POST', '/api/fasting/end', {})).status, 400, 'nothing running');
+  assert.equal((await call('POST', '/api/fasting/start', { goalHours: 16, startedAt: hoursAgo(-2) })).status, 400, 'not in the future');
+  assert.equal((await call('POST', '/api/fasting/start', { goalHours: 16, startedAt: hoursAgo(100) })).status, 400, 'at most 72 hours back');
+  assert.equal((await call('POST', '/api/fasting/start', { goalHours: 0 })).status, 400);
+  await call('POST', '/api/fasting/start', { goalHours: 16, startedAt: hoursAgo(2) });
+  assert.equal((await call('POST', '/api/fasting/end', { endedAt: hoursAgo(3) })).status, 400, 'end before start');
+
+  // Export and import keep them; delete one.
+  const exported = (await call('GET', '/api/export/json')).body;
+  await call('POST', '/api/import/json', { app: 'open-nutrilog', tables: {} });
+  assert.deepEqual((await call('GET', '/api/fasting')).body, { current: null, recent: [] });
+  await call('POST', '/api/import/json', exported);
+  r = (await call('GET', '/api/fasting')).body;
+  assert.ok(r.current);
+  assert.equal(r.recent.length, 2);
+  r = (await call('DELETE', `/api/fasting/${r.recent[0].id}`)).body;
+  assert.equal(r.recent.length, 1);
+});
+
 test('marks, weights and the maintenance history survive export and import', async () => {
   await call('PUT', '/api/profile', spec);
   await call('PUT', `/api/days/${today}/mark`, { training: true, incomplete: true });

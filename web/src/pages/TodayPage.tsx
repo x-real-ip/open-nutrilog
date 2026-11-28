@@ -4,6 +4,7 @@ import type { DayTarget, TargetResponse } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { useInfo } from '../App.tsx';
 import { api, onQueueChange, withPending } from '../api.ts';
+import { FastingCard } from '../components/FastingCard.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
 import { grams, kcal, longDate, versionLabel } from '../format.ts';
 import { t } from '../i18n.ts';
@@ -200,6 +201,8 @@ export default function TodayPage() {
             })}
         </div>
       </section>
+
+      {profile?.fasting && <FastingCard defaultGoal={profile.fastingGoalHours} />}
 
       <section className="section stack">
         <Link className="btn primary big block" to="/diary">

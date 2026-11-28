@@ -25,6 +25,8 @@ const fields = z.object({
   metStrength: z.number().min(2).max(10).default(DEFAULT_MET),
   trainingMinutes: z.number().int().min(10).max(180).default(60),
   workoutEnergyShare: z.union([z.literal(0), z.literal(50), z.literal(100)]).default(100),
+  fasting: z.boolean().default(false),
+  fastingGoalHours: z.number().int().min(1).max(72).default(16),
 });
 
 // Every field has a default, so profiles saved by older versions keep parsing when fields are added.
