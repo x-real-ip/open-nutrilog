@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import type { AiFeature, AiSettingsView, AiUsageSummary, Effort } from '@shared/types.ts';
 import { api } from '../api.ts';
 import { useRefreshInfo } from '../App.tsx';
 import { BarChart } from '../components/Charts.tsx';
-import { IconBack } from '../components/Icons.tsx';
-import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
+import { ErrorState, Loading, SubpageHead, toast, useLoad } from '../components/ui.tsx';
 import { compact, shortDate } from '../format.ts';
 import { decimal, locale, t } from '../i18n.ts';
 
@@ -40,19 +39,13 @@ function modelNote(id: string): string {
 }
 
 export default function AiPage() {
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   // "verbruik" is the Dutch tab name from older links.
   const view = params.get('tab') === 'usage' || params.get('tab') === 'verbruik' ? 'usage' : 'settings';
 
   return (
     <main className="page">
-      <div className="row" style={{ marginBottom: 14 }}>
-        <button className="icon-btn" onClick={() => navigate(-1)} aria-label={t('Back', 'Terug')}>
-          <IconBack />
-        </button>
-      </div>
-      <h1>AI</h1>
+      <SubpageHead title="AI" fallback="/profile" />
       <div className="chips" role="tablist" aria-label={t('View', 'Weergave')} style={{ margin: '14px 0 16px' }}>
         <button role="tab" aria-pressed={view === 'settings'} onClick={() => setParams({}, { replace: true })}>
           {t('Settings', 'Instellingen')}

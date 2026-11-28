@@ -257,8 +257,8 @@ export function dailyTarget(
       id: 'own',
       kcal: own,
       text: loc(
-        `Your own target: ${kcalText(own).en} kcal a day (worked out it would be ${kcalText(worked).en} kcal). Training days, higher days and the weekly average still apply.`,
-        `Je eigen doel: ${kcalText(own).nl} kcal per dag (berekend zou het ${kcalText(worked).nl} kcal zijn). Trainingsdagen, hogere dagen en het weekgemiddelde blijven gelden.`,
+        `Your own target: ${kcalText(own).en} kcal a day (worked out it would be ${kcalText(worked).en} kcal). Training days, higher days and the weekly average still apply.${own < b ? ` It is below your resting energy (${kcalText(b).en} kcal): your choice, but going that low for long isn't good for you or your training.` : ''}`,
+        `Je eigen doel: ${kcalText(own).nl} kcal per dag (berekend zou het ${kcalText(worked).nl} kcal zijn). Trainingsdagen, hogere dagen en het weekgemiddelde blijven gelden.${own < b ? ` Het ligt onder je ruststofwisseling (${kcalText(b).nl} kcal): jouw keuze, maar langere tijd zo laag is niet goed voor je of je training.` : ''}`,
       ),
     });
   }
@@ -301,16 +301,25 @@ export function dailyTarget(
   }
 
   let rest = (own ?? base + adjust) + shift + (carry?.perDay ?? 0);
-  const floorHit = rest < b;
+  // The floor is the resting energy; an own target below it is your choice, so then that is the floor (higher days and
+  // the weekly average can't push below it either).
+  const floor = own !== null ? Math.min(b, own) : b;
+  const floorHit = rest < floor;
   if (floorHit) {
-    rest = b;
+    rest = floor;
     steps.push({
       id: 'floor',
-      kcal: b,
-      text: loc(
-        `That would be below your resting energy, so the target stays at ${kcalText(b).en} kcal. Eating less than that for long isn't good for you or your training; a slower pace gets you there too.`,
-        `Dat zou onder je ruststofwisseling komen, dus het doel blijft op ${kcalText(b).nl} kcal. Langere tijd minder eten is niet goed voor je of je training; rustiger aan brengt je er ook.`,
-      ),
+      kcal: floor,
+      text:
+        floor === b
+          ? loc(
+              `That would be below your resting energy, so the target stays at ${kcalText(b).en} kcal. Eating less than that for long isn't good for you or your training; a slower pace gets you there too.`,
+              `Dat zou onder je ruststofwisseling komen, dus het doel blijft op ${kcalText(b).nl} kcal. Langere tijd minder eten is niet goed voor je of je training; rustiger aan brengt je er ook.`,
+            )
+          : loc(
+              `That would be below your own target, so it stays at ${kcalText(floor).en} kcal.`,
+              `Dat zou onder je eigen doel komen, dus het blijft op ${kcalText(floor).nl} kcal.`,
+            ),
     });
   }
 

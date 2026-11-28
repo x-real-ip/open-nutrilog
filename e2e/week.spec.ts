@@ -43,7 +43,7 @@ for (const lang of ['en', 'nl'] as const) {
     }
 
     // Today shows last week at a glance.
-    await page.goto('/');
+    await page.goto('/today');
     const card = page.getByRole('link', { name: T('Last week: weekly report', 'Vorige week: weekoverzicht') });
     await expect(card).toContainText(T('1800 kcal a day', '1800 kcal per dag'));
     await expect(card).toContainText(T('protein 1/3 days', 'eiwit 1/3 dagen'));

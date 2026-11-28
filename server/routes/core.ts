@@ -36,6 +36,7 @@ export async function coreRoutes(app: FastifyInstance) {
       language: langOf(profile),
       timeZone,
       today: today(timeZone),
+      startPage: profile?.startPage ?? 'today',
     };
   });
 

@@ -80,7 +80,8 @@ approach and adapt it. There is no shared package between the two repos; copying
   "How your target is built" page shows as is: change the rule and its text together.
 - Higher days (`dayShift`) keep the week's total the same, and meal targets (`mealTargets`) only split the day's target;
   both live in `targets.ts` like every other number.
-- An own target (`kcalOverride`) replaces maintenance plus the phase but keeps the floor. The weekly average
+- An own target (`kcalOverride`) replaces maintenance plus the phase and is followed even below the BMR (the user's
+  choice, with a note); then it is the floor for higher days and the weekly average instead of the BMR. The weekly average
   (`carryOver`) is measured against each day's own target (`baseTargetKcal`), never against an already adjusted one,
   so it can't compound; `dayTargets.ts` only gathers the earlier days of the week for it.
 - Keep the spec example green: a man of 80 kg, 180 cm, 40 years, NEAT 1.4, cutting 0.5 %/week → BMR 1730,

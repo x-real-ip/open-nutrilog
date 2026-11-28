@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { IconPlus } from '../components/Icons.tsx';
-import { ErrorState, Loading, useLoad } from '../components/ui.tsx';
+import { ErrorState, Loading, SubpageHead, useLoad } from '../components/ui.tsx';
 import { kcal } from '../format.ts';
 import { t } from '../i18n.ts';
 
@@ -14,9 +14,7 @@ export default function RecipesPage() {
 
   return (
     <main className="page">
-      <div className="page-head">
-        <h1>{t('Recipes', 'Recepten')}</h1>
-      </div>
+      <SubpageHead title={t('Recipes', 'Recepten')} fallback="/profile" />
       {recipes.length ? (
         <div className="list">
           {recipes.map((r) => (

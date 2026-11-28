@@ -27,6 +27,8 @@ const fields = z.object({
   metStrength: z.number().min(2).max(10).default(DEFAULT_MET),
   trainingMinutes: z.number().int().min(10).max(180).default(60),
   workoutEnergyShare: z.union([z.literal(0), z.literal(50), z.literal(100)]).default(100),
+  /** The page the app opens on. */
+  startPage: z.enum(['diary', 'today']).default('diary'),
   /** Push reminders at a time of day (HH:MM in the profile's time zone); null is off. */
   reminders: z
     .object({

@@ -21,7 +21,7 @@ for (const lang of ['en', 'nl'] as const) {
     page.on('dialog', (d) => void d.accept());
     await request.put('/api/profile', { data: { name: 'Test', language: lang, timeZone: '', fasting: true, fastingGoalHours: 16 } });
 
-    await page.goto('/');
+    await page.goto('/today');
     const card = page.getByRole('region', { name: T('Fasting', 'Vasten') });
     await card.getByRole('button', { name: T('14 h', '14 u'), exact: true }).click();
     await card.getByRole('button', { name: T('Start a 14-hour fast', 'Start 14 uur vasten') }).click();

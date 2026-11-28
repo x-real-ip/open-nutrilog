@@ -177,7 +177,15 @@ export default function TodayPage() {
             <MacroBar label={t('Fat', 'Vet')} eaten={eaten.fat} target={goal.fatG} color="var(--macro-fat)" />
           </div>
           <TrainingLine target={target} day={info.today} onChange={(r) => setData([data[0], data[1], r])} />
-          {goal.floorHit && (
+          {goal.restKcal < goal.bmr && (
+            <p className="notice small" style={{ margin: 0 }}>
+              {t(
+                `Your own target is below your resting energy (${goal.bmr} kcal). That is your choice; going that low for long isn’t good for you or your training.`,
+                `Je eigen doel ligt onder je ruststofwisseling (${goal.bmr} kcal). Dat is jouw keuze; langere tijd zo laag is niet goed voor je of je training.`,
+              )}
+            </p>
+          )}
+          {goal.floorHit && goal.restKcal >= goal.bmr && (
             <p className="notice small" style={{ margin: 0 }}>
               {t(
                 'Your target is kept at your resting energy: going lower for long isn’t good for you. A slower pace gets you there too.',

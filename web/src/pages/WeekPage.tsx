@@ -4,7 +4,7 @@ import { useInfo } from '../App.tsx';
 import { api } from '../api.ts';
 import { BarChart } from '../components/Charts.tsx';
 import { IconBack, IconChevron } from '../components/Icons.tsx';
-import { ErrorState, Loading, useLoad } from '../components/ui.tsx';
+import { BackButton, ErrorState, Loading, useLoad } from '../components/ui.tsx';
 import { addDaysTo, chipDate, grams, kcal, kg, shortDate, signed } from '../format.ts';
 import { t } from '../i18n.ts';
 
@@ -40,8 +40,11 @@ export default function WeekPage() {
   const line = summary(r);
   return (
     <main className="page">
+      <div className="row" style={{ marginBottom: 6 }}>
+        <BackButton fallback="/progress" />
+      </div>
       <div className="page-head day-head">
-        <Link className="icon-btn" to={`/week/${r.previous}`} aria-label={t('Previous week', 'Vorige week')}>
+        <Link className="icon-btn" replace to={`/week/${r.previous}`} aria-label={t('Previous week', 'Vorige week')}>
           <IconBack />
         </Link>
         <div className="date-pick">
@@ -51,7 +54,7 @@ export default function WeekPage() {
           </div>
         </div>
         {r.next ? (
-          <Link className="icon-btn" to={`/week/${r.next}`} aria-label={t('Next week', 'Volgende week')}>
+          <Link className="icon-btn" replace to={`/week/${r.next}`} aria-label={t('Next week', 'Volgende week')}>
             <IconChevron />
           </Link>
         ) : (

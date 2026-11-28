@@ -70,7 +70,8 @@ export default function App() {
         >
           <div className="shell with-nav">
             <Routes key={lang}>
-              <Route path="/" element={<TodayPage />} />
+              <Route path="/" element={info.startPage === 'diary' ? <Navigate to="/diary" replace /> : <TodayPage />} />
+              <Route path="/today" element={<TodayPage />} />
               <Route path="/diary" element={<DiaryPage />} />
               <Route path="/diary/:day" element={<DiaryPage />} />
               <Route path="/progress" element={<ProgressPage />} />

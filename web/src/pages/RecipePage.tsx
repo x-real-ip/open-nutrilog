@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Product, RecipeInput } from '@shared/types.ts';
 import { NUTRIENT_KEYS, quantityOf, round, scale, type Nutrients } from '@shared/nutrition.ts';
 import { api, ApiError } from '../api.ts';
 import { BarcodeScanner } from '../components/BarcodeScanner.tsx';
 import { ProductForm } from '../components/ProductForm.tsx';
 import { AddFoodSheet, SourceBadge } from '../components/AddFoodSheet.tsx';
-import { IconBack, IconClose, IconPlus } from '../components/Icons.tsx';
-import { ErrorState, Loading, toast } from '../components/ui.tsx';
+import { IconClose, IconPlus } from '../components/Icons.tsx';
+import { ErrorState, Loading, SubpageHead, toast } from '../components/ui.tsx';
 import { macroLine, parseNumber } from '../food.ts';
 import { kcal, num } from '../format.ts';
 import { t } from '../i18n.ts';
@@ -142,12 +142,7 @@ export default function RecipePage() {
 
   return (
     <main className="page">
-      <div className="page-head" style={{ justifyContent: 'flex-start' }}>
-        <Link className="icon-btn" to="/recipes" aria-label={t('Recipes', 'Recepten')}>
-          <IconBack />
-        </Link>
-        <h1>{id === null ? t('New recipe', 'Nieuw recept') : t('Recipe', 'Recept')}</h1>
-      </div>
+      <SubpageHead title={id === null ? t('New recipe', 'Nieuw recept') : t('Recipe', 'Recept')} fallback="/recipes" />
 
       <section className="stack">
         <label className="field">

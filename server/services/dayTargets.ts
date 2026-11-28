@@ -184,7 +184,8 @@ function targetView(t: Target, workout: Workout | null, lang: Lang): DayTarget {
  */
 function carryFrom(day: string, now: string, baseKcal: Map<string, number>, eaten: (d: string) => number | null): Carry {
   const start = weekStart(day);
-  const ref = day < now ? day : now;
+  // From the day itself when it has passed, else from today; a week still to come starts fresh on its Monday.
+  const ref = day < now ? day : now < start ? start : now;
   const past: CarryDay[] = [];
   for (let d = start; d < ref; d = addDays(d, 1)) {
     const b = baseKcal.get(d);
@@ -224,7 +225,7 @@ export async function targetFor(day: string, changes: Partial<Pick<Profile, 'pha
   if (p.weekAverage) {
     // The earlier days of the same week share this day's maintenance.
     const start = weekStart(day);
-    const end = addDays(day < now ? day : now, -1);
+    const end = addDays(day < now ? day : now < start ? start : now, -1);
     const marks = await getMarks(start, end);
     const workouts = await workoutsBetween(p, start, end, marks);
     const baseKcal = new Map<string, number>();
