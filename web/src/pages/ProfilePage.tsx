@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Language, Phase, Profile, Sex } from '@shared/types.ts';
+import type { Language, LinkedStrength, Phase, Profile, Sex } from '@shared/types.ts';
 import { api } from '../api.ts';
 import { useInfo, useRefreshInfo, useSetLanguage } from '../App.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
@@ -188,6 +188,11 @@ export default function ProfilePage() {
         </p>
       </section>
 
+      <StrengthSection
+        onPrefill={(sp) => setP((cur) => ({ ...cur, age: sp.age, heightCm: sp.heightCm, weightKg: cur.weightKg ?? sp.weightKg }))}
+        phaseSaved={Boolean(saved)}
+      />
+
       <section className="section stack">
         <h2>{t('Activity outside training', 'Activiteit buiten training')}</h2>
         <div className="list" role="radiogroup" aria-label={t('Activity outside training', 'Activiteit buiten training')}>
@@ -307,6 +312,40 @@ export default function ProfilePage() {
       <DataSection />
       <AboutSection />
     </main>
+  );
+}
+
+/**
+ * The link with Open Strength: its status and training goal, a gentle note when goal and phase pull different
+ * ways, and a button to take age, height and weight from there. Loaded after the page, never blocking it.
+ */
+function StrengthSection({ onPrefill, phaseSaved }: { onPrefill: (p: NonNullable<LinkedStrength['profile']>) => void; phaseSaved: boolean }) {
+  const { data } = useLoad(() => api.linkedStrength().catch(() => null));
+  if (!data) return null;
+  const goal = data.profile
+    ? { hypertrophy: t('muscle growth', 'spiermassa'), strength: t('strength', 'kracht'), conditioning: t('conditioning', 'conditie'), fat_loss: t('fat loss', 'vetverlies') }[data.profile.goal]
+    : null;
+  return (
+    <section className="section stack" aria-label="Open Strength">
+      <h2>Open Strength</h2>
+      <div className="panel small stack" style={{ gap: 6 }}>
+        <div>
+          {data.status === 'ok'
+            ? t('Linked: workouts count on training days, and your weigh-ins are shared.', 'Gekoppeld: trainingen tellen mee op trainingsdagen, en je wegingen worden gedeeld.')
+            : data.status === 'unreachable'
+              ? t('Open Strength is not reachable right now; mark training days yourself.', 'Open Strength is nu niet bereikbaar; markeer trainingsdagen zelf.')
+              : t('Not linked. Mark training days yourself on Today.', 'Niet gekoppeld. Markeer trainingsdagen zelf op Vandaag.')}
+        </div>
+        {goal && <div className="muted">{t(`Training goal there: ${goal}`, `Trainingsdoel daar: ${goal}`)}</div>}
+        {data.pendingWeights > 0 && <div className="faint">{t(`${data.pendingWeights} weigh-ins waiting to be sent.`, `${data.pendingWeights} wegingen wachten om verstuurd te worden.`)}</div>}
+      </div>
+      {data.clash && phaseSaved && <p className="notice small" style={{ margin: 0 }}>{data.clash}</p>}
+      {data.profile && (
+        <button className="btn block" onClick={() => onPrefill(data.profile!)}>
+          {t('Use age, height and weight from Open Strength', 'Leeftijd, lengte en gewicht uit Open Strength gebruiken')}
+        </button>
+      )}
+    </section>
   );
 }
 

@@ -197,21 +197,42 @@ export async function targetFor(day: string): Promise<TargetResponse> {
   return { day, target: targetView(target, workout, lang), missing, mark, adaptive: adaptiveView(maintenance, lang) };
 }
 
-// ---------- Progress ----------
+// ---------- Days and progress ----------
 
-/** Intake against target per day and week, weight with its trend, the maintenance per week. */
-export async function progress(numDays: number): Promise<ProgressResponse> {
+/** One day: what was eaten and what the target was (null without a complete profile). */
+export interface DaySummary {
+  date: string;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  logged: boolean;
+  incomplete: boolean;
+  targetKcal: number | null;
+  targetProteinG: number | null;
+  /** Maintenance with that day's training: what eating "at maintenance" would have been. */
+  maintenanceKcal: number | null;
+  weightKg: number | null;
+  isTrainingDay: boolean;
+}
+
+interface History {
+  week_start: string;
+  base_kcal: number;
+  formula_kcal: number;
+  adaptive_kcal: number | null;
+}
+
+/** Days from `from` to `to` with intake and target. Also returns the weekly maintenance history (this week fresh). */
+export async function daySummaries(from: string, to: string): Promise<{ days: DaySummary[]; history: History[]; weights: { date: string; kg: number }[]; now: string }> {
   const p = await getProfile();
   const now = today(timeZoneOf(p));
-  const from = addDays(now, -(numDays - 1));
   const ws = await weighIns();
-  const intake = await intakeByDay(from, now);
-  const marks = await getMarks(from, now);
+  const intake = await intakeByDay(from, to);
+  const marks = await getMarks(from, to);
   const canTarget = p !== null && missingFields(p, ws.length > 0).length === 0;
-  const workouts = p ? await workoutsBetween(p, from, now, marks) : new Map<string, Workout>();
-  const history = await all<{ week_start: string; base_kcal: number; formula_kcal: number; adaptive_kcal: number | null }>(
-    'SELECT week_start, base_kcal, formula_kcal, adaptive_kcal FROM tdee_history ORDER BY week_start',
-  );
+  const workouts = p ? await workoutsBetween(p, from, to, marks) : new Map<string, Workout>();
+  const history = await all<History>('SELECT week_start, base_kcal, formula_kcal, adaptive_kcal FROM tdee_history ORDER BY week_start');
   if (canTarget) {
     const current = await currentMaintenance(p!, now, ws);
     const week = weekStart(now);
@@ -222,16 +243,17 @@ export async function progress(numDays: number): Promise<ProgressResponse> {
   }
   const byWeek = new Map(history.map((h) => [h.week_start, h]));
 
-  const days: ProgressResponse['days'] = [];
-  for (let d = from; d <= now; d = addDays(d, 1)) {
+  const days: DaySummary[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) {
     const i = intake.get(d);
     const mark = marks.get(d);
     const w = workouts.get(d) ?? null;
-    let targetKcal: number | null = null;
-    if (canTarget) {
-      const h = byWeek.get(weekStart(d));
+    const kg = p ? weightOn(d, ws, p.weightKg) : null;
+    let target: Target | null = null;
+    if (canTarget && kg) {
+      const h = byWeek.get(weekStart(d)) ?? byWeek.get(weekStart(now));
       const base = h?.adaptive_kcal != null ? { kcal: h.base_kcal, source: 'adaptive' as const } : null;
-      targetKcal = dailyTarget(bodyOf(p!, weightOn(d, ws, p!.weightKg)!), settingsOf(p!), { base, workout: w }).kcal;
+      target = dailyTarget(bodyOf(p!, kg), settingsOf(p!), { base, workout: w });
     }
     days.push({
       date: d,
@@ -241,10 +263,33 @@ export async function progress(numDays: number): Promise<ProgressResponse> {
       fatG: Math.round(i?.fat ?? 0),
       logged: Boolean(i?.n),
       incomplete: mark?.incomplete ?? false,
-      targetKcal,
+      targetKcal: target?.kcal ?? null,
+      targetProteinG: target?.proteinG ?? null,
+      maintenanceKcal: target ? target.base + target.workoutKcal : null,
+      weightKg: kg,
       isTrainingDay: Boolean(w),
     });
   }
+  return { days, history, weights: ws, now };
+}
+
+/** Intake against target per day and week, weight with its trend, the maintenance per week. */
+export async function progress(numDays: number): Promise<ProgressResponse> {
+  const p = await getProfile();
+  const end = today(timeZoneOf(p));
+  const from = addDays(end, -(numDays - 1));
+  const { days: summaries, history, weights: ws, now } = await daySummaries(from, end);
+  const days: ProgressResponse['days'] = summaries.map((d) => ({
+    date: d.date,
+    kcal: d.kcal,
+    proteinG: d.proteinG,
+    carbsG: d.carbsG,
+    fatG: d.fatG,
+    logged: d.logged,
+    incomplete: d.incomplete,
+    targetKcal: d.targetKcal,
+    isTrainingDay: d.isTrainingDay,
+  }));
 
   const trend = ewma(ws.map((w) => w.kg));
   const weights = ws.map((w, i) => ({ date: w.date, weightKg: w.kg, trendKg: Math.round(trend[i] * 100) / 100 }));

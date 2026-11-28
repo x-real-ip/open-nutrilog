@@ -257,3 +257,15 @@ export interface ProgressResponse {
   averages: { days: number; kcal: number; proteinG: number; carbsG: number; fatG: number } | null;
   tdee: { weekStart: string; baseKcal: number; formulaKcal: number; adaptiveKcal: number | null }[];
 }
+
+// ---------- Open Strength ----------
+
+/** The link with Open Strength, for the PWA (GET /api/linked/strength). */
+export interface LinkedStrength {
+  status: 'off' | 'ok' | 'unreachable';
+  profile: { goal: 'hypertrophy' | 'strength' | 'conditioning' | 'fat_loss'; level: string; age: number; heightCm: number; weightKg: number; language: Language } | null;
+  todayWorkouts: { id: number; status: 'in_progress' | 'completed'; durationMinutes: number; dayName: string; totalSets: number; volumeKg: number }[];
+  clash: string | null;
+  /** Weigh-ins waiting to be sent. */
+  pendingWeights: number;
+}
