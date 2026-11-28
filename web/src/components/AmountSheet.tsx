@@ -59,6 +59,16 @@ export function AmountSheet({
   }, [open, initialProduct, entry, mealId]);
 
   const amount = parseNumber(text);
+  /** One step up or down: a whole serving (halves below one), or 10 g/ml. Never below the smallest step. */
+  const step = (current: number | null, dir: 1 | -1): number => {
+    const v = current ?? 0;
+    if (choice.unit === 'serving') {
+      if (dir < 0) return v > 1 ? Math.max(1, Math.ceil(v) - 1) : 0.5;
+      return v < 1 ? 1 : Math.floor(v) + 1;
+    }
+    const next = dir > 0 ? Math.floor(v / 10) * 10 + 10 : Math.ceil(v / 10) * 10 - 10;
+    return Math.max(10, next);
+  };
   const valid = amount !== null && amount > 0 && amount <= 10_000;
   const unit: EntryUnit = choice.unit;
   const servingLabel = choice.unit === 'serving' ? choice.label : null;
@@ -137,16 +147,25 @@ export function AmountSheet({
         </div>
 
         <div className="amount-row">
-          <input
-            className="input num amount"
-            inputMode="decimal"
-            aria-label={t('Amount', 'Hoeveelheid')}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={(e) => e.key === 'Enter' && void save()}
-            autoFocus
-          />
+          {/* No keyboard until you ask for it: − and + cover most changes, tapping the number types one. */}
+          <div className="stepper-row">
+            <button className="icon-btn big-step" aria-label={t('Less', 'Minder')} onClick={() => setText(num(step(amount, -1), 2))}>
+              −
+            </button>
+            <input
+              className="input num amount"
+              inputMode="decimal"
+              enterKeyHint="done"
+              aria-label={t('Amount', 'Hoeveelheid')}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => e.key === 'Enter' && void save()}
+            />
+            <button className="icon-btn big-step" aria-label={t('More', 'Meer')} onClick={() => setText(num(step(amount, 1), 2))}>
+              +
+            </button>
+          </div>
           {product ? (
             <div className="chips">
               <button aria-pressed={choice.unit !== 'serving'} onClick={() => setChoice({ unit: product.unit })}>

@@ -47,7 +47,12 @@ for (const lang of ['en', 'nl'] as const) {
     await sheet.getByRole('button', { name: T('Save', 'Opslaan'), exact: true }).click();
 
     await expect(sheet.getByRole('heading', { name: bread })).toBeVisible();
-    await sheet.getByLabel(T('Amount', 'Hoeveelheid')).fill('2');
+    // The amount sheet opens without the keyboard; + and − change it (1 slice → 2 → 3 → back to 2).
+    await expect(sheet.getByLabel(T('Amount', 'Hoeveelheid'))).not.toBeFocused();
+    await sheet.getByRole('button', { name: T('More', 'Meer') }).click();
+    await sheet.getByRole('button', { name: T('More', 'Meer') }).click();
+    await sheet.getByRole('button', { name: T('Less', 'Minder') }).click();
+    await expect(sheet.getByLabel(T('Amount', 'Hoeveelheid'))).toHaveValue('2');
     await expect(sheet.getByText('168 kcal')).toBeVisible();
     await sheet.getByRole('button', { name: T('Add', 'Toevoegen'), exact: true }).click();
     await expect(meal('Breakfast', 'Ontbijt').getByRole('button', { name: new RegExp(bread) })).toContainText(T('2 × 1 slice (70 g)', '2 × 1 snee (70 g)'));
