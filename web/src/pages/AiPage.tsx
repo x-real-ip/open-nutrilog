@@ -16,7 +16,7 @@ export function usd(n: number | null): string {
 }
 
 const featureLabel = (f: AiFeature) =>
-  ({ parse: t('Meals from text', 'Maaltijden uit tekst'), photo: t('Meals from a photo', 'Maaltijden uit een foto'), coach: t('Coach', 'Coach'), test: t('Connection test', 'Verbindingstest') })[f] ?? f;
+  ({ parse: t('Meals from text', 'Maaltijden uit tekst'), photo: t('Meals from a photo', 'Maaltijden uit een foto'), label: t('Nutrition labels', 'Voedingsetiketten'), coach: t('Coach', 'Coach'), test: t('Connection test', 'Verbindingstest') })[f] ?? f;
 
 const efforts = (): { id: Effort | null; label: string }[] => [
   { id: 'low', label: t('Low', 'Laag') },

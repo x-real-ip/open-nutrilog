@@ -9,6 +9,7 @@ import type {
   DiaryDay,
   DiaryEntry,
   EntryInput,
+  LabelReading,
   LinkedStrength,
   MealProposal,
   PhaseSuggestion,
@@ -93,6 +94,8 @@ export const api = {
   createSavedMeal: (name: string, entryIds: string[]) => request<{ savedMeal: SavedMeal }>('POST', '/api/saved-meals', { name, entryIds }),
   updateSavedMeal: (id: number, name: string, itemIds?: number[]) => request<{ savedMeal: SavedMeal }>('PUT', `/api/saved-meals/${id}`, { name, itemIds }),
   deleteSavedMeal: (id: number) => request<{ ok: true }>('DELETE', `/api/saved-meals/${id}`),
+
+  readLabel: (image: string) => request<{ label: LabelReading }>('POST', '/api/ai/label', { image }),
 
   target: (day: string) => request<TargetResponse>('GET', `/api/targets/${day}`),
   setMark: (day: string, mark: Partial<DayMark>) => request<TargetResponse>('PUT', `/api/days/${day}/mark`, mark),

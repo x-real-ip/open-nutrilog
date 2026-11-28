@@ -67,7 +67,7 @@ const FALLBACK_MODELS = new Set(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude
 
 function effortFor(feature: AiFeature, s: AiSettings): Effort | null {
   if (feature === 'coach') return s.coachEffort;
-  if (feature === 'parse' || feature === 'photo') return s.parseEffort;
+  if (feature === 'parse' || feature === 'photo' || feature === 'label') return s.parseEffort;
   return 'low';
 }
 
