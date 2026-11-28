@@ -241,12 +241,6 @@ export default function TodayPage() {
           </Link>
         </section>
       )}
-
-      <section className="section stack">
-        <Link className="btn primary big block" to="/diary">
-          {t('Open the diary', 'Dagboek openen')}
-        </Link>
-      </section>
     </main>
   );
 }
