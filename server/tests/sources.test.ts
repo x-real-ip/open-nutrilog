@@ -49,7 +49,8 @@ const { config } = await import('../config.ts');
 const { openDb, closeDb } = await import('../db.ts');
 const { initAuth } = await import('../auth.ts');
 const { buildApp } = await import('../app.ts');
-const { parseNevoFile, versionFromName, nevoNumber } = await import('../services/nevo.ts');
+const { parseNevoFile, pickNevoEntry, versionFromName, nevoNumber } = await import('../services/nevo.ts');
+const { readZip } = await import('../services/zip.ts');
 const { importOffDump } = await import('../services/offDump.ts');
 const { searchLimiter } = await import('../services/off.ts');
 const { recipeValues } = await import('../services/recipes.ts');
@@ -77,7 +78,7 @@ const nevoCsv = fixture('nevo-synthetic.csv');
 const DAY = '2026-11-27';
 
 /** A minimal zip writer for the tests (stored and deflated entries). */
-function makeZip(files: { name: string; data: Buffer; deflate?: boolean }[]): Buffer {
+function makeZip(files: { name: string; data: Buffer; deflate?: boolean; claimedSize?: number }[]): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
@@ -101,7 +102,7 @@ function makeZip(files: { name: string; data: Buffer; deflate?: boolean }[]): Bu
     central.writeUInt16LE(f.deflate ? 8 : 0, 10);
     central.writeUInt32LE(crc, 16);
     central.writeUInt32LE(body.length, 20);
-    central.writeUInt32LE(f.data.length, 24);
+    central.writeUInt32LE(f.claimedSize ?? f.data.length, 24);
     central.writeUInt16LE(name.length, 28);
     central.writeUInt32LE(offset, 42);
     centrals.push(central, name);
@@ -152,6 +153,20 @@ test('NEVO parser: other delimiters and decimal points, a zip, versions, and ref
   const z = parseNevoFile(zip, 'download.zip');
   assert.equal(z.foods.length, 5);
   assert.equal(z.version, '2025/9.0', 'the version from the file inside');
+
+  // The real download also holds detail tables of hundreds of MB: only their first line is read.
+  const details = Buffer.from('NEVO-code|Voedingsmiddelnaam|Nutrient-code|Waarde|Bron\n' + '9001|Testappel|PROT|0,3|RIVM\n'.repeat(400_000));
+  const big = makeZip([
+    { name: 'NEVO2025_v9.0/NEVO2025_Details_v9.0.csv', data: details, deflate: true },
+    { name: 'NEVO2025_v9.0/NEVO2025_v9.0.csv', data: nevoCsv, deflate: true },
+  ]);
+  assert.equal(parseNevoFile(big, 'NEVO2025_v9.0.zip').foods.length, 5);
+  const entries = readZip(big).map((e) => ({ ...e, read: () => assert.fail(`${e.name} was unpacked`) }));
+  assert.equal(pickNevoEntry(entries)?.name, 'NEVO2025_v9.0/NEVO2025_v9.0.csv', 'picked by its header, nothing unpacked');
+  assert.throws(
+    () => parseNevoFile(makeZip([{ name: 'NEVO.csv', data: nevoCsv, deflate: true, claimedSize: 200 * 1024 * 1024 }]), 'x.zip'),
+    /too large to be the NEVO table/,
+  );
 
   assert.equal(versionFromName('NEVO-online 2023 v8.0.csv'), '2023/8.0');
   assert.equal(versionFromName('foods.csv'), null);

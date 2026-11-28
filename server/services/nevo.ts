@@ -9,7 +9,7 @@ import type { Nutrients } from '../../shared/nutrition.ts';
 import { KJ_PER_KCAL, round } from '../../shared/nutrition.ts';
 import { getSetting, run, tx } from '../db.ts';
 import { loc, UserError, type Localized } from '../i18n.ts';
-import { isZip, readZip } from './zip.ts';
+import { isZip, readZip, type ZipEntry } from './zip.ts';
 
 export interface NevoFood {
   code: string;
@@ -71,12 +71,18 @@ export function nevoNumber(text: string | undefined): number | null {
 
 const MAIN = new Set(['ENERCC', 'ENERCJ', 'PROT', 'CHO', 'SUGAR', 'FAT', 'FASAT', 'FIBT', 'NACL']);
 
-/** Parses one NEVO CSV. Returns null when the text isn't a NEVO table. */
-export function parseNevoCsv(text: string): NevoFood[] | null {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
-  if (lines.length < 2) return null;
-  const delimiter = detectDelimiter(lines[0]);
-  const header = splitLine(lines[0], delimiter);
+interface NevoColumns {
+  delimiter: string;
+  codeCol: number;
+  nlCol: number;
+  enCol: number;
+  nutrientCols: { i: number; code: string; unit: string }[];
+}
+
+/** The columns of a NEVO table from its header line, or null when it isn't the NEVO table. */
+export function nevoColumns(headerLine: string): NevoColumns | null {
+  const delimiter = detectDelimiter(headerLine);
+  const header = splitLine(headerLine, delimiter);
   const find = (test: (h: string) => boolean) => header.findIndex((h) => test(h.toLowerCase()));
   const codeCol = find((h) => /^nevo[- _]?code$/.test(h));
   const nlCol = find((h) => h.includes('voedingsmiddelnaam') || h.includes('dutch food name'));
@@ -86,8 +92,19 @@ export function parseNevoCsv(text: string): NevoFood[] | null {
     const m = /^([A-Z][A-Z0-9_]*)\s*\(([^)]+)\)$/.exec(h.trim());
     return m ? [{ i, code: m[1], unit: m[2].trim() }] : [];
   });
+  const has = (code: string) => nutrientCols.some((c) => c.code === code);
+  if (codeCol < 0 || nlCol < 0 || (!has('ENERCC') && !has('ENERCJ'))) return null;
+  return { delimiter, codeCol, nlCol, enCol, nutrientCols };
+}
+
+/** Parses one NEVO CSV. Returns null when the text isn't a NEVO table. */
+export function parseNevoCsv(text: string): NevoFood[] | null {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
+  if (lines.length < 2) return null;
+  const cols = nevoColumns(lines[0]);
+  if (!cols) return null;
+  const { delimiter, codeCol, nlCol, enCol, nutrientCols } = cols;
   const col = (code: string) => nutrientCols.find((c) => c.code === code);
-  if (codeCol < 0 || nlCol < 0 || (!col('ENERCC') && !col('ENERCJ'))) return null;
 
   const foods: NevoFood[] = [];
   for (const line of lines.slice(1)) {
@@ -139,17 +156,28 @@ export function versionFromName(name: string): string | null {
   return m ? `${m[1]}/${m[2].replace(',', '.')}` : null;
 }
 
-/** A CSV, or a .zip with the CSV inside (the largest NEVO table wins: the zip also holds detail files). */
+/** The NEVO table itself is a few MB; anything far bigger is not it, and unpacking it would only use up memory. */
+export const MAX_NEVO_TABLE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * The NEVO table in a zip: only the first line of each CSV is unpacked to see whether it is the table (the download
+ * also holds detail tables of hundreds of MB). When several are, the largest wins.
+ */
+export function pickNevoEntry(entries: ZipEntry[]): ZipEntry | null {
+  const tables = entries.filter((e) => /\.(csv|txt)$/i.test(e.name) && nevoColumns(decodeText(e.head()).split(/\r?\n/)[0] ?? '') !== null);
+  return tables.sort((a, b) => b.size - a.size)[0] ?? null;
+}
+
+/** A CSV, or a .zip with the CSV inside. */
 export function parseNevoFile(buf: Buffer, filename: string): { foods: NevoFood[]; version: string | null } {
   if (isZip(buf)) {
-    let best: { foods: NevoFood[]; name: string } | null = null;
-    for (const entry of readZip(buf)) {
-      if (!/\.(csv|txt)$/i.test(entry.name)) continue;
-      const foods = parseNevoCsv(decodeText(entry.read()));
-      if (foods && (!best || foods.length > best.foods.length)) best = { foods, name: entry.name };
-    }
-    if (!best) throw notNevo();
-    return { foods: best.foods, version: versionFromName(best.name) ?? versionFromName(filename) };
+    const entry = pickNevoEntry(readZip(buf));
+    if (!entry) throw notNevo();
+    if (entry.size > MAX_NEVO_TABLE_BYTES)
+      throw new UserError(400, `${entry.name} is too large to be the NEVO table.`, `${entry.name} is te groot om de NEVO-tabel te zijn.`);
+    const foods = parseNevoCsv(decodeText(entry.read()));
+    if (!foods) throw notNevo();
+    return { foods, version: versionFromName(entry.name) ?? versionFromName(filename) };
   }
   const foods = parseNevoCsv(decodeText(buf));
   if (!foods) throw notNevo();
