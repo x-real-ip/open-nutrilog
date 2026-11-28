@@ -35,6 +35,8 @@ export interface Profile {
   trainingMinutes: number;
   /** How much of the workout energy counts: 0, 50 or 100 %. */
   workoutEnergyShare: number;
+  /** Push reminders at a time of day (HH:MM); null is off. Only devices with notifications on get them. */
+  reminders: { meals: { mealId: number; time: string }[]; weighIn: string | null; summary: string | null };
   updatedAt?: string;
 }
 

@@ -101,6 +101,13 @@ approach and adapt it. There is no shared package between the two repos; copying
 - Nutrition values come from the free text of Picnic's "Voedingswaarde" section (`parsePicnicNutrition`): add a test
   case for every new format seen. Without values the user gets a draft, never guessed numbers.
 
+## Push reminders
+
+- Web Push as in Open Strength (`services/push.ts`, `web-push`). VAPID keys and device subscriptions are settings
+  rows (`vapid`, `push:<hash>`), so they never reach an export. Reminders (`services/reminders.ts`) are checked every
+  minute; each is claimed once a day in settings (`reminder:<kind>`), so a restart or a second replica doesn't send it
+  twice, and only within 30 minutes of its time. Tests use `setPushSender`, never a real push service.
+
 ## Integration with Open Strength
 
 - Both apps work fully when the other is down or not configured; linked features degrade quietly. Never block a
