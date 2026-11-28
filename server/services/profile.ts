@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Profile } from '../../shared/types.ts';
 import { config, validTimeZone } from '../config.ts';
 import { nowIso, one, run } from '../db.ts';
-import { DEFAULT_MET, DEFAULT_NEAT, MAX_SHIFT_KCAL } from './targets.ts';
+import { DEFAULT_MET, DEFAULT_NEAT, MAX_SHIFT_KCAL, OWN_TARGET_RANGE } from './targets.ts';
 
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
@@ -35,6 +35,10 @@ const fields = z.object({
       summary: clockTime.nullable().default(null),
     })
     .default({ meals: [], weighIn: null, summary: null }),
+  /** Your own rest-day target in kcal; null: worked out from your profile. */
+  kcalOverride: z.number().int().min(OWN_TARGET_RANGE.min).max(OWN_TARGET_RANGE.max).nullable().default(null),
+  /** Eating more or less on a day is made up on the days left in the week. */
+  weekAverage: z.boolean().default(false),
   fasting: z.boolean().default(false),
   fastingGoalHours: z.number().int().min(1).max(72).default(16),
   /** Higher days (1 = Monday … 7 = Sunday) with their extra energy; the other days give it back. */

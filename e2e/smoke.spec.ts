@@ -30,7 +30,7 @@ for (const lang of ['en', 'nl'] as const) {
 
     await page.getByLabel(T('Name', 'Naam')).fill('Test');
     await page.getByRole('button', { name: T('Woman', 'Vrouw') }).click();
-    await page.getByLabel(T('Age', 'Leeftijd')).fill('35');
+    await page.getByLabel(T('Age', 'Leeftijd'), { exact: true }).fill('35');
     await page.getByLabel(T('Height (cm)', 'Lengte (cm)')).fill('168');
     await page.getByLabel(T('Weight (kg)', 'Gewicht (kg)')).fill('64');
     await page.getByRole('button', { name: T('Save', 'Opslaan'), exact: true }).click();

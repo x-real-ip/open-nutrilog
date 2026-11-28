@@ -7,7 +7,7 @@ import { langOf, pick, type Lang } from '../i18n.ts';
 import { addDays, DAY_PATTERN, daysBetween, today } from './days.ts';
 import { getProfile, timeZoneOf } from './profile.ts';
 import { listMeals } from './meals.ts';
-import { adaptiveTdee, bmr, dailyTarget, ewma, mealTargets, workoutEnergy, type AdaptiveResult, type Body, type Target, type TargetSettings, type Workout } from './targets.ts';
+import { adaptiveTdee, bmr, carryOver, dailyTarget, ewma, mealTargets, workoutEnergy, type Carry, type CarryDay, type AdaptiveResult, type Body, type Target, type TargetSettings, type Workout } from './targets.ts';
 
 /** Monday of the week a day is in. */
 export function weekStart(day: string): string {
@@ -26,6 +26,7 @@ export function settingsOf(p: Profile): TargetSettings {
     workoutEnergyShare: p.workoutEnergyShare,
     shiftDays: p.shiftDays,
     shiftKcal: p.shiftKcal,
+    kcalOverride: p.kcalOverride,
   };
 }
 
@@ -177,6 +178,27 @@ function targetView(t: Target, workout: Workout | null, lang: Lang): DayTarget {
 // ---------- Targets ----------
 
 /** The target for one day, with how it was built. Without sex, age, height and weight there is no target yet. */
+/**
+ * The weekly average for a day: the days of its week before it (or before today, for a day still to come) with
+ * their own targets and what was eaten. Only gathers; carryOver() works it out.
+ */
+function carryFrom(day: string, now: string, baseKcal: Map<string, number>, eaten: (d: string) => number | null): Carry {
+  const start = weekStart(day);
+  const ref = day < now ? day : now;
+  const past: CarryDay[] = [];
+  for (let d = start; d < ref; d = addDays(d, 1)) {
+    const b = baseKcal.get(d);
+    if (b !== undefined) past.push({ baseKcal: b, eatenKcal: eaten(d) });
+  }
+  return carryOver(past, daysBetween(ref, addDays(start, 6)) + 1);
+}
+
+/** What counts as eaten for the weekly average: a logged day that isn't marked incomplete. */
+const eatenOf = (intake: Awaited<ReturnType<typeof intakeByDay>>, marks: Map<string, DayMark>) => (d: string) => {
+  const i = intake.get(d);
+  return i?.n && !marks.get(d)?.incomplete ? i.kcal : null;
+};
+
 export async function targetFor(day: string, changes: Partial<Pick<Profile, 'phase' | 'ratePctPerWeek'>> = {}): Promise<TargetResponse> {
   z.string().regex(DAY_PATTERN).parse(day);
   const saved = await getProfile();
@@ -198,7 +220,20 @@ export async function targetFor(day: string, changes: Partial<Pick<Profile, 'pha
     base = row?.adaptive_kcal != null ? { kcal: row.base_kcal, source: 'adaptive' } : null;
   }
   const workout = (await workoutsBetween(p, day, day, new Map([[day, mark]]))).get(day) ?? null;
-  const target = dailyTarget(bodyOf(p, kg), settingsOf(p), { base, workout, day });
+  let carry: Carry | null = null;
+  if (p.weekAverage) {
+    // The earlier days of the same week share this day's maintenance.
+    const start = weekStart(day);
+    const end = addDays(day < now ? day : now, -1);
+    const marks = await getMarks(start, end);
+    const workouts = await workoutsBetween(p, start, end, marks);
+    const baseKcal = new Map<string, number>();
+    for (let d = start; d <= end; d = addDays(d, 1)) {
+      baseKcal.set(d, dailyTarget(bodyOf(p, weightOn(d, ws, p.weightKg)!), settingsOf(p), { base, workout: workouts.get(d) ?? null, day: d }).kcal);
+    }
+    carry = carryFrom(day, now, baseKcal, eatenOf(await intakeByDay(start, end), marks));
+  }
+  const target = dailyTarget(bodyOf(p, kg), settingsOf(p), { base, workout, day, carry });
   const shown = (await listMeals(lang)).filter((m) => !m.hidden).map((m) => m.id);
   const meals = mealTargets(target, p.mealShares, shown);
   return { day, target: targetView(target, workout, lang), missing, mark, adaptive: adaptiveView(maintenance, lang), meals };
@@ -215,7 +250,10 @@ export interface DaySummary {
   fatG: number;
   logged: boolean;
   incomplete: boolean;
+  /** The day's target, with the weekly average when that is on. */
   targetKcal: number | null;
+  /** The day's own target, without the weekly average: what the week is measured against. */
+  baseTargetKcal: number | null;
   targetProteinG: number | null;
   /** Maintenance with that day's training: what eating "at maintenance" would have been. */
   maintenanceKcal: number | null;
@@ -235,10 +273,12 @@ export async function daySummaries(from: string, to: string): Promise<{ days: Da
   const p = await getProfile();
   const now = today(timeZoneOf(p));
   const ws = await weighIns();
-  const intake = await intakeByDay(from, to);
-  const marks = await getMarks(from, to);
+  // The weekly average needs the days of the first week before `from` too.
+  const start = p?.weekAverage ? weekStart(from) : from;
+  const intake = await intakeByDay(start, to);
+  const marks = await getMarks(start, to);
   const canTarget = p !== null && missingFields(p, ws.length > 0).length === 0;
-  const workouts = p ? await workoutsBetween(p, from, to, marks) : new Map<string, Workout>();
+  const workouts = p ? await workoutsBetween(p, start, to, marks) : new Map<string, Workout>();
   const history = await all<History>('SELECT week_start, base_kcal, formula_kcal, adaptive_kcal FROM tdee_history ORDER BY week_start');
   if (canTarget) {
     const current = await currentMaintenance(p!, now, ws);
@@ -250,17 +290,32 @@ export async function daySummaries(from: string, to: string): Promise<{ days: Da
   }
   const byWeek = new Map(history.map((h) => [h.week_start, h]));
 
+  // First every day's own target, then the weekly average on top (it needs the days before).
+  const baseFor = (d: string) => {
+    const h = byWeek.get(weekStart(d)) ?? byWeek.get(weekStart(now));
+    return h?.adaptive_kcal != null ? { kcal: h.base_kcal, source: 'adaptive' as const } : null;
+  };
+  const own = new Map<string, Target>();
+  if (canTarget) {
+    for (let d = start; d <= to; d = addDays(d, 1)) {
+      const kg = weightOn(d, ws, p!.weightKg);
+      if (kg) own.set(d, dailyTarget(bodyOf(p!, kg), settingsOf(p!), { base: baseFor(d), workout: workouts.get(d) ?? null, day: d }));
+    }
+  }
+  const ownKcal = new Map([...own].map(([d, t]) => [d, t.kcal]));
+  const eaten = eatenOf(intake, marks);
+
   const days: DaySummary[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
     const i = intake.get(d);
     const mark = marks.get(d);
     const w = workouts.get(d) ?? null;
     const kg = p ? weightOn(d, ws, p.weightKg) : null;
-    let target: Target | null = null;
-    if (canTarget && kg) {
-      const h = byWeek.get(weekStart(d)) ?? byWeek.get(weekStart(now));
-      const base = h?.adaptive_kcal != null ? { kcal: h.base_kcal, source: 'adaptive' as const } : null;
-      target = dailyTarget(bodyOf(p!, kg), settingsOf(p!), { base, workout: w, day: d });
+    const base = own.get(d) ?? null;
+    let target: Target | null = base;
+    if (base && p!.weekAverage) {
+      const carry = carryFrom(d, now, ownKcal, eaten);
+      if (carry.perDay !== 0) target = dailyTarget(bodyOf(p!, kg!), settingsOf(p!), { base: baseFor(d), workout: w, day: d, carry });
     }
     days.push({
       date: d,
@@ -271,6 +326,7 @@ export async function daySummaries(from: string, to: string): Promise<{ days: Da
       logged: Boolean(i?.n),
       incomplete: mark?.incomplete ?? false,
       targetKcal: target?.kcal ?? null,
+      baseTargetKcal: base?.kcal ?? null,
       targetProteinG: target?.proteinG ?? null,
       maintenanceKcal: target ? target.base + target.workoutKcal : null,
       weightKg: kg,

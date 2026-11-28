@@ -25,6 +25,10 @@ export const MAX_TDEE_STEP = 150;
 export const EWMA_ALPHA = 0.1;
 /** Most extra energy a higher day can get. */
 export const MAX_SHIFT_KCAL = 600;
+/** Most the weekly average moves one day's target, up or down. */
+export const MAX_CARRY_KCAL = 300;
+/** The range of an own target. */
+export const OWN_TARGET_RANGE = { min: 1000, max: 6000 };
 
 export interface Body {
   sex: Sex;
@@ -47,6 +51,37 @@ export interface TargetSettings {
   /** Higher days (ISO weekdays, 1 = Monday) that get `shiftKcal` more; the other days give it back. */
   shiftDays?: number[];
   shiftKcal?: number;
+  /** Your own rest-day target, instead of maintenance plus the phase; null: worked out. */
+  kcalOverride?: number | null;
+}
+
+/** What the days of this week before a day ate over (+) or under (−) their targets, and what that does to the day. */
+export interface Carry {
+  /** Eaten minus target, added up over the complete days so far this week. */
+  balance: number;
+  /** The days it is spread over: from the day (or today) through Sunday. */
+  daysLeft: number;
+  /** What this day's target moves: −balance / daysLeft, at most MAX_CARRY_KCAL either way. */
+  perDay: number;
+  capped: boolean;
+}
+
+export interface CarryDay {
+  baseKcal: number;
+  /** null: nothing logged, or marked incomplete; such a day counts as on target. */
+  eatenKcal: number | null;
+}
+
+/**
+ * The weekly average: eating more on one day takes it off the days left in the week, eating less adds it, so the
+ * week's average stays on target. A new week starts fresh. At most 300 kcal a day either way; the rest is let go.
+ */
+export function carryOver(past: CarryDay[], daysLeft: number): Carry {
+  const balance = Math.round(past.reduce((sum, d) => sum + (d.eatenKcal === null ? 0 : d.eatenKcal - d.baseKcal), 0));
+  const left = Math.max(1, daysLeft);
+  const raw = -balance / left;
+  const perDay = Math.round(Math.max(-MAX_CARRY_KCAL, Math.min(MAX_CARRY_KCAL, raw)));
+  return { balance, daysLeft: left, perDay: perDay === 0 ? 0 : perDay, capped: Math.abs(raw) > MAX_CARRY_KCAL };
 }
 
 export interface Workout {
@@ -56,7 +91,7 @@ export interface Workout {
 }
 
 export interface Step {
-  id: 'bmr' | 'base' | 'adaptive' | 'phase' | 'shift' | 'floor' | 'workout' | 'protein' | 'fat' | 'carbs';
+  id: 'bmr' | 'base' | 'adaptive' | 'phase' | 'own' | 'shift' | 'carry' | 'floor' | 'workout' | 'protein' | 'fat' | 'carbs';
   kcal: number | null;
   text: Localized;
 }
@@ -76,6 +111,8 @@ export interface Target {
   workoutKcal: number;
   isTrainingDay: boolean;
   floorHit: boolean;
+  /** The weekly average's effect on this day, when it is on. */
+  carry: Carry | null;
   steps: Step[];
 }
 
@@ -161,7 +198,7 @@ export function proteinPerKg(s: Pick<TargetSettings, 'phase' | 'proteinGPerKg'>)
 export function dailyTarget(
   body: Body,
   s: TargetSettings,
-  opts: { base?: { kcal: number; source: 'formula' | 'adaptive' } | null; workout?: Workout | null; day?: string } = {},
+  opts: { base?: { kcal: number; source: 'formula' | 'adaptive' } | null; workout?: Workout | null; day?: string; carry?: Carry | null } = {},
 ): Target {
   const steps: Step[] = [];
   const kg = body.weightKg;
@@ -212,6 +249,20 @@ export function dailyTarget(
           ),
   });
 
+  // Your own target replaces maintenance plus the phase; higher days, the weekly average and training still apply.
+  const own = s.kcalOverride ?? null;
+  if (own !== null) {
+    const worked = base + adjust;
+    steps.push({
+      id: 'own',
+      kcal: own,
+      text: loc(
+        `Your own target: ${kcalText(own).en} kcal a day (worked out it would be ${kcalText(worked).en} kcal). Training days, higher days and the weekly average still apply.`,
+        `Je eigen doel: ${kcalText(own).nl} kcal per dag (berekend zou het ${kcalText(worked).nl} kcal zijn). Trainingsdagen, hogere dagen en het weekgemiddelde blijven gelden.`,
+      ),
+    });
+  }
+
   const setup = shiftSetup(s);
   const shift = setup && opts.day ? dayShift(s, isoWeekday(opts.day)) : 0;
   if (setup && shift !== 0) {
@@ -232,7 +283,24 @@ export function dailyTarget(
     });
   }
 
-  let rest = base + adjust + shift;
+  const carry = opts.carry ?? null;
+  if (carry && carry.perDay !== 0) {
+    const over = carry.balance > 0;
+    const days = (lang: 'en' | 'nl') => (carry.daysLeft === 1 ? (lang === 'en' ? 'the last day' : 'de laatste dag') : lang === 'en' ? `the ${carry.daysLeft} days left` : `de ${carry.daysLeft} resterende dagen`);
+    const cap = carry.capped
+      ? loc(` That is the most a day moves (${MAX_CARRY_KCAL} kcal); the rest is let go.`, ` Meer dan ${MAX_CARRY_KCAL} kcal per dag gaat het niet omhoog of omlaag; de rest laten we gaan.`)
+      : loc('', '');
+    steps.push({
+      id: 'carry',
+      kcal: carry.perDay,
+      text: loc(
+        `Weekly average: this week you ate ${kcalText(Math.abs(carry.balance)).en} kcal ${over ? 'more' : 'less'} than your targets so far. Spread over ${days('en')}, that is ${kcalText(Math.abs(carry.perDay)).en} kcal ${over ? 'less' : 'more'} a day.${cap.en}`,
+        `Weekgemiddelde: deze week at je tot nu toe ${kcalText(Math.abs(carry.balance)).nl} kcal ${over ? 'meer' : 'minder'} dan je doelen. Verdeeld over ${days('nl')} is dat ${kcalText(Math.abs(carry.perDay)).nl} kcal per dag ${over ? 'minder' : 'meer'}.${cap.nl}`,
+      ),
+    });
+  }
+
+  let rest = (own ?? base + adjust) + shift + (carry?.perDay ?? 0);
   const floorHit = rest < b;
   if (floorHit) {
     rest = b;
@@ -315,6 +383,7 @@ export function dailyTarget(
     workoutKcal,
     isTrainingDay: Boolean(w),
     floorHit,
+    carry,
     steps,
   };
 }

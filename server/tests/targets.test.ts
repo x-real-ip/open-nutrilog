@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   adaptiveTdee,
   bmr,
+  carryOver,
   dailyTarget,
   dayShift,
   isoWeekday,
@@ -185,6 +186,44 @@ test('meal targets: the day split by your shares, scaled over the meals that are
   );
   assert.deepEqual(mealTargets(day, [], [1, 2]), []);
   assert.deepEqual(mealTargets(day, [{ mealId: 9, pct: 100 }], [1, 2]), []);
+});
+
+test('own target: replaces maintenance plus the phase; training, higher days and the floor still apply', () => {
+  const t = dailyTarget(man, { ...cut, kcalOverride: 2100 });
+  assert.equal(t.kcal, 2100);
+  assert.equal(t.proteinG, 160, 'protein from body weight as before');
+  assert.match(t.steps.find((x) => x.id === 'own')!.text.en, /Your own target: 2100 kcal a day \(worked out it would be 1982 kcal\)/);
+  assert.equal(dailyTarget(man, { ...cut, kcalOverride: 2100 }, { workout: { minutes: 45, source: 'finished' } }).kcal, 2340);
+  assert.equal(dailyTarget(man, { ...cut, kcalOverride: 2100, shiftDays: [6, 7], shiftKcal: 300 }, { day: '2026-11-28' }).kcal, 2400);
+  const low = dailyTarget(man, { ...cut, kcalOverride: 1200 });
+  assert.equal(low.kcal, 1730, 'never below the resting energy');
+  assert.equal(low.floorHit, true);
+  assert.equal(dailyTarget(man, { ...cut, kcalOverride: null }).kcal, 1982, 'the spec example without it');
+});
+
+test('weekly average: over or under so far is spread over the days left, at most 300 kcal a day', () => {
+  // Monday 600 over, Tuesday not logged (counts as on target), Wednesday 100 under: 500 over over 5 days left.
+  const c = carryOver(
+    [
+      { baseKcal: 2000, eatenKcal: 2600 },
+      { baseKcal: 2000, eatenKcal: null },
+      { baseKcal: 2000, eatenKcal: 1900 },
+    ],
+    4,
+  );
+  assert.deepEqual(c, { balance: 500, daysLeft: 4, perDay: -125, capped: false });
+  assert.deepEqual(carryOver([{ baseKcal: 2000, eatenKcal: 1400 }], 2), { balance: -600, daysLeft: 2, perDay: 300, capped: false });
+  assert.deepEqual(carryOver([{ baseKcal: 2000, eatenKcal: 3500 }], 2), { balance: 1500, daysLeft: 2, perDay: -300, capped: true });
+  assert.deepEqual(carryOver([], 7), { balance: 0, daysLeft: 7, perDay: 0, capped: false });
+
+  const t = dailyTarget(man, cut, { carry: c });
+  assert.equal(t.kcal, 1982 - 125);
+  assert.match(t.steps.find((x) => x.id === 'carry')!.text.en, /you ate 500 kcal more than your targets so far\. Spread over the 4 days left, that is 125 kcal less a day\./);
+  const capped = dailyTarget(man, cut, { carry: carryOver([{ baseKcal: 2000, eatenKcal: 3500 }], 2) });
+  assert.match(capped.steps.find((x) => x.id === 'carry')!.text.nl, /de rest laten we gaan/);
+  assert.equal(dailyTarget(man, cut, { carry: carryOver([], 7) }).steps.some((x) => x.id === 'carry'), false, 'no step without a balance');
+  // The floor still holds.
+  assert.equal(dailyTarget(man, { ...cut, ratePctPerWeek: 1 }, { carry: { balance: 900, daysLeft: 3, perDay: -300, capped: false } }).kcal, 1730);
 });
 
 test('EWMA: alpha 0.1 per weigh-in', () => {

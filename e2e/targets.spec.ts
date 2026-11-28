@@ -24,7 +24,7 @@ for (const lang of ['en', 'nl'] as const) {
     if (lang === 'nl') await page.getByRole('button', { name: 'Nederlands' }).click();
 
     await page.getByRole('button', { name: T('Man', 'Man'), exact: true }).click();
-    await page.getByLabel(T('Age', 'Leeftijd')).fill('40');
+    await page.getByLabel(T('Age', 'Leeftijd'), { exact: true }).fill('40');
     await page.getByLabel(T('Height (cm)', 'Lengte (cm)')).fill('180');
     await page.getByLabel(T('Weight (kg)', 'Gewicht (kg)')).fill('80');
     await page.getByRole('radio', { name: new RegExp(T('Some walking', 'Wat lopen')) }).click();
