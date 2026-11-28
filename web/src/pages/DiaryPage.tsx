@@ -48,7 +48,7 @@ export default function DiaryPage() {
   const navigate = useNavigate();
   const day = params.day && DAY.test(params.day) ? params.day : info.today;
   const { data, error, loading, reload } = useLoad(() => api.day(day), [day]);
-  const marks = useLoad(() => api.target(day).then((r) => r.mark), [day]);
+  const goal = useLoad(() => api.target(day), [day]);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [, setTick] = useState(0);
   /** The entries picked for a bulk action; null when not picking. */
@@ -174,6 +174,7 @@ export default function DiaryPage() {
         const entries = view.entries.filter((e) => e.mealId === meal.id);
         const total = sumNutrients(entries.map((e) => e.nutrients));
         const allPicked = entries.length > 0 && entries.every((e) => selected?.has(e.id));
+        const mealGoal = goal.data?.meals.find((g) => g.mealId === meal.id);
         return (
           <section key={meal.id} className="section meal" aria-label={meal.name}>
             <div className="spread meal-head">
@@ -189,7 +190,9 @@ export default function DiaryPage() {
                   {allPicked ? t('Select none', 'Niets selecteren') : t('Select all', 'Alles selecteren')}
                 </button>
               ) : (
-                <span className="muted num">{entries.length > 0 ? kcal(total.kcal) : ''}</span>
+                <span className="muted num">
+                  {mealGoal ? `${Math.round(total.kcal)} / ${kcal(mealGoal.kcal)}` : entries.length > 0 ? kcal(total.kcal) : ''}
+                </span>
               )}
             </div>
             {entries.length > 0 && (
@@ -251,14 +254,14 @@ export default function DiaryPage() {
         <button className="link-btn" onClick={() => void addMeal()}>
           {t('Add a meal', 'Maaltijd toevoegen')}
         </button>
-        {marks.data && (
+        {goal.data && (
           <label className="row small muted" style={{ gap: 10 }}>
             <input
               type="checkbox"
-              checked={marks.data.incomplete}
+              checked={goal.data.mark.incomplete}
               onChange={async (e) => {
                 try {
-                  marks.setData((await api.setMark(day, { incomplete: e.target.checked })).mark);
+                  goal.setData(await api.setMark(day, { incomplete: e.target.checked }));
                 } catch (err) {
                   toast((err as Error).message);
                 }

@@ -24,6 +24,11 @@ export function kj(kcalValue: number): string {
   return `${Math.round(kcalValue * 4.184)} kJ`;
 }
 
+/** +1.2 / −0.4 / ±0 with the given number format. */
+export function signed(n: number, format: (x: number) => string): string {
+  return `${n > 0 ? '+' : n < 0 ? '−' : '±'}${format(Math.abs(n))}`;
+}
+
 /** Grams of a macro: whole grams from 10 g, one decimal below. */
 export function grams(n: number): string {
   return `${n >= 10 ? Math.round(n) : num(n, 1)} g`;

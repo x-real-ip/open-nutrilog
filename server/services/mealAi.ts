@@ -69,18 +69,23 @@ export async function readMealText(text: string, lang: Lang, today: string): Pro
 
 const DATA_URL = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
 
-/** A photo (resized in the browser), optionally with a note. Kept only when the setting says so. */
-export async function readMealPhoto(dataUrl: string, note: string, lang: Lang, today: string): Promise<MealProposal> {
+/** A photo from the browser as an image block for the AI; refuses anything that isn't a small JPEG, PNG or WebP. */
+export function imagePart(dataUrl: string): ImagePart {
   const m = DATA_URL.exec(dataUrl);
   if (!m) throw new UserError(400, 'That is not a photo the app can read (JPEG, PNG or WebP).', 'Dat is geen foto die de app kan lezen (JPEG, PNG of WebP).');
-  const data = m[2];
-  if ((data.length * 3) / 4 > 2_500_000) throw new UserError(413, 'The photo is too large.', 'De foto is te groot.');
+  if ((m[2].length * 3) / 4 > 2_500_000) throw new UserError(413, 'The photo is too large.', 'De foto is te groot.');
+  return { type: 'image', mediaType: m[1] as ImagePart['mediaType'], data: m[2] };
+}
+
+/** A photo (resized in the browser), optionally with a note. Kept only when the setting says so. */
+export async function readMealPhoto(dataUrl: string, note: string, lang: Lang, today: string): Promise<MealProposal> {
+  const image = imagePart(dataUrl);
   const proposal = await read(lang, today, 'photo', [
-    { type: 'image', mediaType: m[1] as ImagePart['mediaType'], data },
+    image,
     { type: 'text', text: note.trim() ? note.trim().slice(0, 500) : lang === 'nl' ? 'Wat staat er op deze foto?' : 'What is on this photo?' },
   ]);
   if (getAiSettings().storePhotos) {
-    await run('INSERT INTO meal_photos (day, media_type, data) VALUES ($1, $2, $3)', [today, m[1], Buffer.from(data, 'base64')], getPool());
+    await run('INSERT INTO meal_photos (day, media_type, data) VALUES ($1, $2, $3)', [today, image.mediaType, Buffer.from(image.data, 'base64')], getPool());
   }
   return proposal;
 }

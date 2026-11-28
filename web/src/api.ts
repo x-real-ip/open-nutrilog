@@ -9,6 +9,7 @@ import type {
   DiaryDay,
   DiaryEntry,
   EntryInput,
+  LabelReading,
   LinkedStrength,
   MealProposal,
   PhaseSuggestion,
@@ -27,6 +28,7 @@ import type {
   SavedMeal,
   SourcesInfo,
   TargetResponse,
+  WeekReport,
 } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { deletePending, getPending, pendingAll, putPending, type PendingOp } from './offlineStore.ts';
@@ -94,12 +96,15 @@ export const api = {
   updateSavedMeal: (id: number, name: string, itemIds?: number[]) => request<{ savedMeal: SavedMeal }>('PUT', `/api/saved-meals/${id}`, { name, itemIds }),
   deleteSavedMeal: (id: number) => request<{ ok: true }>('DELETE', `/api/saved-meals/${id}`),
 
+  readLabel: (image: string) => request<{ label: LabelReading }>('POST', '/api/ai/label', { image }),
+
   target: (day: string) => request<TargetResponse>('GET', `/api/targets/${day}`),
   setMark: (day: string, mark: Partial<DayMark>) => request<TargetResponse>('PUT', `/api/days/${day}/mark`, mark),
   bodyWeights: () => request<{ entries: BodyWeightEntry[] }>('GET', '/api/body-weights'),
   logBodyWeight: (weightKg: number, date?: string) => request<{ entries: BodyWeightEntry[] }>('POST', '/api/body-weights', { weightKg, date }),
   deleteBodyWeight: (id: number) => request<{ entries: BodyWeightEntry[] }>('DELETE', `/api/body-weights/${id}`),
   progress: (days = 56) => request<ProgressResponse>('GET', `/api/progress?days=${days}`),
+  weekReport: (day?: string) => request<WeekReport>('GET', `/api/week-report${day ? `?day=${day}` : ''}`),
 
   pushKey: () => request<{ publicKey: string }>('GET', '/api/push/key'),
   pushSubscribe: (sub: PushSubscriptionJSON) => request<{ ok: true }>('POST', '/api/push/subscriptions', sub),
