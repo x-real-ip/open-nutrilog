@@ -5,6 +5,7 @@ import { checkPassword, clearFailures, loginAllowed, logout, oidcCallback, oidcL
 import { config } from '../config.ts';
 import { langOf, UserError } from '../i18n.ts';
 import { databaseReady } from '../db.ts';
+import { noteProfileWeight } from '../services/bodyWeight.ts';
 import { today } from '../services/days.ts';
 import { getProfile, saveProfile, timeZoneOf } from '../services/profile.ts';
 
@@ -59,6 +60,9 @@ export async function coreRoutes(app: FastifyInstance) {
 
   app.get('/api/profile', async () => ({ profile: await getProfile() }));
   app.put('/api/profile', async (req) => {
-    return { profile: await saveProfile(req.body) };
+    const before = await getProfile();
+    const profile = await saveProfile(req.body);
+    await noteProfileWeight(before, profile);
+    return { profile };
   });
 }

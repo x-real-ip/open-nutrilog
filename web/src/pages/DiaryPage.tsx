@@ -34,6 +34,7 @@ export default function DiaryPage() {
   const navigate = useNavigate();
   const day = params.day && DAY.test(params.day) ? params.day : info.today;
   const { data, error, loading, reload } = useLoad(() => api.day(day), [day]);
+  const marks = useLoad(() => api.target(day).then((r) => r.mark), [day]);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [, setTick] = useState(0);
 
@@ -157,6 +158,27 @@ export default function DiaryPage() {
         <button className="link-btn" onClick={() => void addMeal()}>
           {t('Add a meal', 'Maaltijd toevoegen')}
         </button>
+        {marks.data && (
+          <label className="row small muted" style={{ gap: 10 }}>
+            <input
+              type="checkbox"
+              checked={marks.data.incomplete}
+              onChange={async (e) => {
+                try {
+                  marks.setData((await api.setMark(day, { incomplete: e.target.checked })).mark);
+                } catch (err) {
+                  toast((err as Error).message);
+                }
+              }}
+            />
+            <span>
+              {t(
+                'I didn’t log everything this day (it then doesn’t count for your own maintenance)',
+                'Ik heb deze dag niet alles gelogd (hij telt dan niet mee voor je eigen onderhoud)',
+              )}
+            </span>
+          </label>
+        )}
       </section>
 
       <AddFoodSheet

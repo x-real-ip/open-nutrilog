@@ -2,7 +2,7 @@
 
 A personal, self-hosted calorie and nutrition tracker: a food diary with search, barcode scanning and recipes, daily targets from a deterministic engine, and a link with the strength training app [Open Strength](https://github.com/x-real-ip/open-strength). Mobile-first and fine in a desktop browser (sidebar from 900 px), dark theme, installable as a PWA. Runs in the homelab cluster with PostgreSQL (CloudNativePG) and is deployed through [`x-real-ip/gitops`](https://github.com/x-real-ip/gitops).
 
-> Work in progress. Sign-in, profile, the food diary, your own products and Open Food Facts barcodes work. Targets, NEVO and the OFF text search, recipes, the link with Open Strength and the AI features follow.
+> Work in progress. Sign-in, the food diary, your own products, Open Food Facts barcodes, daily targets and progress work. NEVO and the OFF text search, recipes, the link with Open Strength and the AI features follow.
 
 ## Contents
 
@@ -23,7 +23,23 @@ A personal, self-hosted calorie and nutrition tracker: a food diary with search,
 - **Barcodes**: scan with the camera (the browser's own barcode reader where it has one, such as Chrome on Android or Vanadium on GrapheneOS, otherwise a built-in WebAssembly reader) or type the number. Your own products with that barcode come first; otherwise the server looks it up at [Open Food Facts](https://world.openfoodfacts.org) and keeps a copy. An unknown barcode opens a new product with the barcode filled in.
 - **Your own products**: values per 100 g or 100 ml, optional servings and barcode. Editing a product from Open Food Facts saves your own version; the original stays as it is, and deleting your version brings it back. Star a product as a favourite, or hide it from search and lists.
 - **Offline**: entries are saved on the phone first (IndexedDB) and sent when there is a connection; the diary shows what is not synced yet. What you ate keeps its values when the product changes later.
+- **Targets**: a daily energy and macro target from your profile (sex, age, height, weight, activity outside training, goal and pace). The Today screen shows what is left, protein, carbohydrates and fat against their targets, and whether it is a training day. *Training today* raises the target before you train. *How your target is built* explains every step with your numbers.
+- **Progress**: weigh-ins with a smoothed trend and the change per week, energy eaten against the target per day and per week, average macros and protein per kg, and your maintenance per week.
 - **Data**: export everything as JSON and import such a file again (that replaces all data).
+
+### How targets work
+
+Targets are **never set by the AI**. They come from a deterministic engine (`server/services/targets.ts`):
+
+- **Resting energy** (BMR, Mifflin-St Jeor): men `10·kg + 6.25·cm − 5·age + 5`, women `… − 161`.
+- **Maintenance without training** = BMR × your activity outside training (1.2 mostly sitting, 1.4 some walking, 1.55 on your feet a lot, 1.7 physical work). Training is not in this number, so it is never counted twice.
+- **Goal**: `pace × kg × 7700 / 7` kcal a day less (cut) or more (bulk). The pace is capped at 1 % of body weight a week for a cut and 0.5 % for a bulk.
+- **Training days**: a day you mark as *Training today* (with your usual training length), or later a workout from Open Strength. It adds `(MET − 1) × kg × hours` (net MET, so the resting part isn't counted twice; MET 5.0 for strength training, at most 2 hours), of which 0, 50 or 100 % counts. With carb cycling on, that energy goes to carbohydrates.
+- **Macros**: protein 1.8 g/kg (2.0 on a cut) or your own setting; fat at least 25 % of the energy; carbohydrates the rest.
+- **Safety floor**: the target never goes below your resting energy; the app says so gently when that happens.
+- **Your own maintenance**: after 14 days with at least 10 complete days logged and 8 weigh-ins, the app works out your maintenance from your own data (average intake minus the energy in the change of your trend weight, an EWMA with α 0.1, minus the training energy credited on those days). It is blended with the formula as data grows and moves at most 150 kcal a week. Days you mark as incomplete in the diary are left out.
+
+Spec example (a unit test): a man of 80 kg, 180 cm, 40 years, activity 1.4, cutting 0.5 %/week has BMR 1730, maintenance 2422, −440 for the cut, so 1982 kcal on a rest day. A 45-minute workout adds `(5 − 1) × 80 × 0.75 = 240`, so 2222 kcal on a training day. Protein 2.0 g/kg = 160 g.
 
 ### Open Food Facts
 
@@ -134,6 +150,9 @@ server/                   Fastify API (TypeScript, Node 22+), also serves the bu
     throttle.ts           token bucket for outside APIs
     meals.ts              meals of a day
     diary.ts              entries (PUT by a client id), nutrient snapshots, copying
+    targets.ts            the target engine: pure functions, BMR, phases, training, macros, adaptive maintenance
+    dayTargets.ts         gathers the engine's inputs (profile, weigh-ins, marks, intake) and builds progress
+    bodyWeight.ts         weigh-ins; the latest is the profile weight
     dataExport.ts         JSON export and import
   tests/                  node:test with embedded Postgres and a local OIDC provider
 shared/types.ts           types shared by server and frontend

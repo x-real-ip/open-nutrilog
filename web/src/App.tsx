@@ -8,6 +8,7 @@ import DiaryPage from './pages/DiaryPage.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
 import ProgressPage from './pages/ProgressPage.tsx';
+import TargetsPage from './pages/TargetsPage.tsx';
 import TodayPage from './pages/TodayPage.tsx';
 
 const InfoContext = createContext<AppInfo | null>(null);
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="/diary/:day" element={<DiaryPage />} />
               <Route path="/progress" element={<ProgressPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/targets" element={<TargetsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

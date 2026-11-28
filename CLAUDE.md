@@ -69,6 +69,9 @@ approach and adapt it. There is no shared package between the two repos; copying
 - Calorie and macro targets come from `server/services/targets.ts` only: deterministic, pure functions, fully
   unit-tested. The AI never sets targets; it may explain them, and a suggested change goes through the engine and
   needs the user's confirmation.
+- `dayTargets.ts` only gathers the engine's inputs (profile, weigh-ins, day marks, intake, workouts); it never works
+  out a number itself. Every step of a target carries its own explanation (`Step.text`, both languages), which the
+  "How your target is built" page shows as is: change the rule and its text together.
 - Keep the spec example green: a man of 80 kg, 180 cm, 40 years, NEAT 1.4, cutting 0.5 %/week → BMR 1730,
   base 2422, cut −440, rest-day target 1982 kcal; a 45-minute workout at MET 5.0 adds 240 → 2222 kcal; protein
   2.0 g/kg = 160 g.
