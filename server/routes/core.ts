@@ -5,6 +5,7 @@ import { checkPassword, clearFailures, loginAllowed, logout, oidcCallback, oidcL
 import { config } from '../config.ts';
 import { langOf, UserError } from '../i18n.ts';
 import { databaseReady } from '../db.ts';
+import { aiConfigured, getAiSettings } from '../services/aiSettings.ts';
 import { noteProfileWeight } from '../services/bodyWeight.ts';
 import { today } from '../services/days.ts';
 import { getProfile, saveProfile, timeZoneOf } from '../services/profile.ts';
@@ -21,6 +22,9 @@ export async function coreRoutes(app: FastifyInstance) {
     const profile = await getProfile().catch(() => null);
     const timeZone = timeZoneOf(profile);
     return {
+      aiConfigured: aiConfigured(),
+      aiProvider: getAiSettings().provider,
+      aiModel: getAiSettings().model,
       authMode: config.auth.mode,
       authRequired: config.auth.mode !== 'none',
       authenticated: Boolean(req.user),

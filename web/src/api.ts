@@ -1,11 +1,17 @@
 import type {
+  AiSettingsUpdate,
+  AiSettingsView,
+  AiUsageSummary,
   AppInfo,
+  CoachMessage,
   BodyWeightEntry,
   DayMark,
   DiaryDay,
   DiaryEntry,
   EntryInput,
   LinkedStrength,
+  MealProposal,
+  PhaseSuggestion,
   Meal,
   Product,
   ProductInput,
@@ -84,6 +90,17 @@ export const api = {
   deleteBodyWeight: (id: number) => request<{ entries: BodyWeightEntry[] }>('DELETE', `/api/body-weights/${id}`),
   progress: (days = 56) => request<ProgressResponse>('GET', `/api/progress?days=${days}`),
 
+  aiSettings: () => request<AiSettingsView>('GET', '/api/settings/ai'),
+  saveAiSettings: (update: AiSettingsUpdate) => request<AiSettingsView>('PUT', '/api/settings/ai', update),
+  testAi: () => request<{ ok: true; reply: string; ms: number }>('POST', '/api/settings/ai/test'),
+  usage: () => request<AiUsageSummary>('GET', '/api/usage'),
+  coachMessages: () => request<{ messages: CoachMessage[] }>('GET', '/api/coach/messages'),
+  sendCoach: (content: string) => request<{ messages: CoachMessage[] }>('POST', '/api/coach/messages', { content }),
+  clearCoach: () => request<{ ok: true }>('DELETE', '/api/coach/messages'),
+  previewTarget: (s: PhaseSuggestion) => request<TargetResponse>('POST', '/api/targets/preview', s),
+  mealFromText: (text: string) => request<MealProposal>('POST', '/api/ai/meal/text', { text }),
+  mealFromPhoto: (image: string, note: string) => request<MealProposal>('POST', '/api/ai/meal/photo', { image, note }),
+
   importJson: (data: unknown) => request<{ ok: true }>('POST', '/api/import/json', data),
   /** The NEVO file as downloaded (CSV or zip), sent as is. */
   importNevo: async (file: File) => {
@@ -155,20 +172,29 @@ let flushing: Promise<void> | null = null;
 export function flushQueue(): Promise<void> {
   if (flushing) return flushing;
   flushing = (async () => {
-    for (const op of pendingAll()) {
-      try {
-        if (op.kind === 'put') await request('PUT', `/api/diary/entries/${op.id}`, op.input);
-        else await request('DELETE', `/api/diary/entries/${op.id}`);
-        // Only remove it if it wasn't changed again while we were sending.
-        if (JSON.stringify(getPending(op.id)) === JSON.stringify(op)) await deletePending(op.id);
-      } catch (err) {
-        if (err instanceof ApiError && err.status >= 400 && err.status < 500 && ![401, 408, 429].includes(err.status)) {
-          // The server rejected it for good (e.g. the meal no longer exists): drop it, or it blocks the queue.
-          await deletePending(op.id);
-          continue;
+    // Keep going while there is progress: changes made during a round (logging several items at once) are sent
+    // right away instead of waiting for the next retry.
+    for (let round = 0; round < 20; round++) {
+      const ops = pendingAll();
+      if (!ops.length) break;
+      let stuck = false;
+      for (const op of ops) {
+        try {
+          if (op.kind === 'put') await request('PUT', `/api/diary/entries/${op.id}`, op.input);
+          else await request('DELETE', `/api/diary/entries/${op.id}`);
+          // Only remove it if it wasn't changed again while we were sending.
+          if (JSON.stringify(getPending(op.id)) === JSON.stringify(op)) await deletePending(op.id);
+        } catch (err) {
+          if (err instanceof ApiError && err.status >= 400 && err.status < 500 && ![401, 408, 429].includes(err.status)) {
+            // The server rejected it for good (e.g. the meal no longer exists): drop it, or it blocks the queue.
+            await deletePending(op.id);
+            continue;
+          }
+          stuck = true; // offline or a server error: keep everything, retry later
+          break;
         }
-        break; // offline or a server error: keep everything, retry later
       }
+      if (stuck) break;
     }
   })().finally(() => {
     flushing = null;

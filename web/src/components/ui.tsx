@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { versionLabel } from '../format.ts';
 import { t } from '../i18n.ts';
-import { IconDiary, IconProfile, IconProgress, IconToday } from './Icons.tsx';
+import { IconCoach, IconDiary, IconProfile, IconProgress, IconToday } from './Icons.tsx';
 
 /** Bottom tab bar on phones; a sidebar with the logo and version on wide screens (see styles.css). */
 export function BottomNav({ version }: { version: string }) {
@@ -10,6 +10,7 @@ export function BottomNav({ version }: { version: string }) {
     { to: '/', label: t('Today', 'Vandaag'), icon: <IconToday /> },
     { to: '/diary', label: t('Diary', 'Dagboek'), icon: <IconDiary /> },
     { to: '/progress', label: t('Progress', 'Voortgang'), icon: <IconProgress /> },
+    { to: '/coach', label: t('Coach', 'Coach'), icon: <IconCoach /> },
     { to: '/profile', label: t('Profile', 'Profiel'), icon: <IconProfile /> },
   ];
   return (

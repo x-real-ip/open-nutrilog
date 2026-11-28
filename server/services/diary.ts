@@ -23,7 +23,15 @@ export const entryInputSchema = z
     unit: z.enum(['g', 'ml', 'serving', 'kcal']),
     servingLabel: z.string().max(60).nullable().optional(),
     quick: z
-      .object({ name: z.string().trim().max(80).default(''), kcal: z.number().min(0).max(10_000), protein: macro, carbs: macro, fat: macro })
+      .object({
+        name: z.string().trim().max(80).default(''),
+        kcal: z.number().min(0).max(10_000),
+        protein: macro,
+        carbs: macro,
+        fat: macro,
+        /** Values the AI estimated because no product matched; the diary marks them. */
+        aiEstimate: z.boolean().default(false),
+      })
       .nullable()
       .optional(),
   })
@@ -59,6 +67,7 @@ export async function getDay(d: string, lang: Lang): Promise<DiaryDay> {
 
 interface Snapshot {
   productId: number | null;
+  aiEstimate: boolean;
   name: string;
   brand: string;
   source: string | null;
@@ -73,6 +82,7 @@ async function snapshot(input: EntryInput, existing: any | undefined, lang: Lang
     if (!q) throw new UserError(400, 'A quick add needs an energy value.', 'Snel toevoegen heeft een energiewaarde nodig.');
     return {
       productId: null,
+      aiEstimate: q.aiEstimate ?? false,
       name: q.name || encode(QUICK_NAME),
       brand: '',
       source: null,
@@ -86,6 +96,7 @@ async function snapshot(input: EntryInput, existing: any | undefined, lang: Lang
     if (quantity === null) throw new UserError(400, 'This product has no such serving.', 'Dit product heeft zo’n portie niet.');
     return {
       productId: product.id,
+      aiEstimate: false,
       name: encode({ en: product.nameEn || product.nameNl, nl: product.nameNl || product.nameEn }),
       brand: product.brand,
       source: product.source,
@@ -97,7 +108,7 @@ async function snapshot(input: EntryInput, existing: any | undefined, lang: Lang
     // The product was deleted after this was logged: scale the entry's own values.
     const quantity = input.unit === 'serving' ? existing.quantity * (input.amount / existing.amount) : input.amount;
     const ratio = quantity / existing.quantity;
-    return { productId: null, name: existing.name, brand: existing.brand, source: existing.source, quantity, nutrients: scale(nutrientsOf(existing), ratio * 100) };
+    return { productId: null, aiEstimate: existing.ai_estimate, name: existing.name, brand: existing.brand, source: existing.source, quantity, nutrients: scale(nutrientsOf(existing), ratio * 100) };
   }
   throw new UserError(400, 'Choose a product.', 'Kies een product.');
 }
@@ -113,12 +124,12 @@ export async function putEntry(id: string, raw: unknown, lang: Lang): Promise<Di
     const n = snap.nutrients;
     const row = await one(
       `INSERT INTO diary_entries (id, day, meal_id, product_id, name, brand, source, amount, unit, serving_label, quantity,
-         kcal, protein, carbs, sugars, fat, sat_fat, fibre, salt, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now(), now())
+         kcal, protein, carbs, sugars, fat, sat_fat, fibre, salt, ai_estimate, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, now(), now())
        ON CONFLICT (id) DO UPDATE SET day = excluded.day, meal_id = excluded.meal_id, product_id = excluded.product_id, name = excluded.name,
          brand = excluded.brand, source = excluded.source, amount = excluded.amount, unit = excluded.unit, serving_label = excluded.serving_label,
          quantity = excluded.quantity, kcal = excluded.kcal, protein = excluded.protein, carbs = excluded.carbs, sugars = excluded.sugars,
-         fat = excluded.fat, sat_fat = excluded.sat_fat, fibre = excluded.fibre, salt = excluded.salt, updated_at = now()
+         fat = excluded.fat, sat_fat = excluded.sat_fat, fibre = excluded.fibre, salt = excluded.salt, ai_estimate = excluded.ai_estimate, updated_at = now()
        RETURNING *`,
       [
         id,
@@ -140,6 +151,7 @@ export async function putEntry(id: string, raw: unknown, lang: Lang): Promise<Di
         n.satFat,
         n.fibre,
         n.salt,
+        snap.aiEstimate,
       ],
       c,
     );
