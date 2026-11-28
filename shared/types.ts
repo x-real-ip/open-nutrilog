@@ -35,6 +35,11 @@ export interface Profile {
   trainingMinutes: number;
   /** How much of the workout energy counts: 0, 50 or 100 %. */
   workoutEnergyShare: number;
+  /** Higher days (1 = Monday … 7 = Sunday) that get `shiftKcal` more; the other days get less, so the week stays the same. */
+  shiftDays: number[];
+  shiftKcal: number;
+  /** The day's target per meal in %, adding up to 100; empty for no meal targets. */
+  mealShares: { mealId: number; pct: number }[];
   updatedAt?: string;
 }
 
@@ -232,6 +237,8 @@ export interface TargetResponse {
   missing: ('sex' | 'age' | 'heightCm' | 'weightKg')[];
   mark: DayMark;
   adaptive: AdaptiveView | null;
+  /** The target per meal, when you set shares per meal. */
+  meals: { mealId: number; kcal: number; proteinG: number }[];
 }
 
 export interface BodyWeightEntry {

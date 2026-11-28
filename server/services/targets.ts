@@ -23,6 +23,8 @@ export const FAT_MIN_SHARE = 0.25;
 /** The adaptive maintenance estimate moves at most this much per week. */
 export const MAX_TDEE_STEP = 150;
 export const EWMA_ALPHA = 0.1;
+/** Most extra energy a higher day can get. */
+export const MAX_SHIFT_KCAL = 600;
 
 export interface Body {
   sex: Sex;
@@ -42,6 +44,9 @@ export interface TargetSettings {
   metStrength: number;
   /** How much of the workout energy counts: 0, 50 or 100 %. */
   workoutEnergyShare: number;
+  /** Higher days (ISO weekdays, 1 = Monday) that get `shiftKcal` more; the other days give it back. */
+  shiftDays?: number[];
+  shiftKcal?: number;
 }
 
 export interface Workout {
@@ -51,7 +56,7 @@ export interface Workout {
 }
 
 export interface Step {
-  id: 'bmr' | 'base' | 'adaptive' | 'phase' | 'floor' | 'workout' | 'protein' | 'fat' | 'carbs';
+  id: 'bmr' | 'base' | 'adaptive' | 'phase' | 'shift' | 'floor' | 'workout' | 'protein' | 'fat' | 'carbs';
   kcal: number | null;
   text: Localized;
 }
@@ -97,6 +102,54 @@ export function workoutEnergy(met: number, weightKg: number, minutes: number, sh
   return Math.max(0, met - 1) * weightKg * (Math.min(Math.max(minutes, 0), MAX_WORKOUT_MINUTES) / 60) * (sharePct / 100);
 }
 
+/** ISO weekday of a YYYY-MM-DD date: 1 = Monday … 7 = Sunday. */
+export function isoWeekday(day: string): number {
+  const d = new Date(`${day}T00:00:00Z`).getUTCDay();
+  return d === 0 ? 7 : d;
+}
+
+const WEEKDAYS: Record<'en' | 'nl', string[]> = { en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], nl: ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'] };
+
+function shiftSetup(s: Pick<TargetSettings, 'shiftDays' | 'shiftKcal'>): { days: number[]; extra: number; less: number } | null {
+  const days = [...new Set((s.shiftDays ?? []).filter((d) => Number.isInteger(d) && d >= 1 && d <= 7))].sort();
+  const extra = Math.round(Math.min(Math.max(s.shiftKcal ?? 0, 0), MAX_SHIFT_KCAL));
+  if (!days.length || days.length === 7 || !extra) return null;
+  return { days, extra, less: Math.round((extra * days.length) / (7 - days.length)) };
+}
+
+/**
+ * Calorie shifting: the higher days get `shiftKcal` more and the other days share that out as less, so the week adds
+ * up to the same (within a few kcal of rounding) and the pace doesn't change.
+ */
+export function dayShift(s: Pick<TargetSettings, 'shiftDays' | 'shiftKcal'>, weekday: number): number {
+  const setup = shiftSetup(s);
+  if (!setup) return 0;
+  return setup.days.includes(weekday) ? setup.extra : -setup.less;
+}
+
+export interface MealShare {
+  mealId: number;
+  /** Share of the day's target in %. */
+  pct: number;
+}
+
+export interface MealTarget {
+  mealId: number;
+  kcal: number;
+  proteinG: number;
+}
+
+/**
+ * The day's target split over the meals by your shares. Only meals that are there count, and their shares are scaled
+ * to 100 %, so hiding a meal spreads its share over the others.
+ */
+export function mealTargets(t: Pick<Target, 'kcal' | 'proteinG'>, shares: MealShare[], mealIds: number[]): MealTarget[] {
+  const used = shares.filter((x) => x.pct > 0 && mealIds.includes(x.mealId));
+  const total = used.reduce((sum, x) => sum + x.pct, 0);
+  if (!total) return [];
+  return used.map((x) => ({ mealId: x.mealId, kcal: Math.round((t.kcal * x.pct) / total), proteinG: Math.round((t.proteinG * x.pct) / total) }));
+}
+
 export function proteinPerKg(s: Pick<TargetSettings, 'phase' | 'proteinGPerKg'>): number {
   return s.proteinGPerKg ?? (s.phase === 'cut' ? 2.0 : 1.8);
 }
@@ -105,7 +158,11 @@ export function proteinPerKg(s: Pick<TargetSettings, 'phase' | 'proteinGPerKg'>)
  * The target for one day. `base` overrides the formula's maintenance (the adaptive estimate); `workout` makes it a
  * training day.
  */
-export function dailyTarget(body: Body, s: TargetSettings, opts: { base?: { kcal: number; source: 'formula' | 'adaptive' } | null; workout?: Workout | null } = {}): Target {
+export function dailyTarget(
+  body: Body,
+  s: TargetSettings,
+  opts: { base?: { kcal: number; source: 'formula' | 'adaptive' } | null; workout?: Workout | null; day?: string } = {},
+): Target {
   const steps: Step[] = [];
   const kg = body.weightKg;
   const b = Math.round(bmr(body));
@@ -155,7 +212,27 @@ export function dailyTarget(body: Body, s: TargetSettings, opts: { base?: { kcal
           ),
   });
 
-  let rest = base + adjust;
+  const setup = shiftSetup(s);
+  const shift = setup && opts.day ? dayShift(s, isoWeekday(opts.day)) : 0;
+  if (setup && shift !== 0) {
+    const names = (lang: 'en' | 'nl') => setup.days.map((d) => WEEKDAYS[lang][d - 1]).join(', ');
+    steps.push({
+      id: 'shift',
+      kcal: shift,
+      text:
+        shift > 0
+          ? loc(
+              `A higher day (${names('en')}): ${setup.extra} kcal more. The other days get ${setup.less} kcal less each, so your week adds up to the same.`,
+              `Een hogere dag (${names('nl')}): ${setup.extra} kcal meer. De andere dagen krijgen elk ${setup.less} kcal minder, zodat je week hetzelfde uitkomt.`,
+            )
+          : loc(
+              `Your higher days (${names('en')}) get ${setup.extra} kcal more; to keep the week the same, this day gets ${setup.less} kcal less.`,
+              `Je hogere dagen (${names('nl')}) krijgen ${setup.extra} kcal meer; om de week gelijk te houden krijgt deze dag ${setup.less} kcal minder.`,
+            ),
+    });
+  }
+
+  let rest = base + adjust + shift;
   const floorHit = rest < b;
   if (floorHit) {
     rest = b;

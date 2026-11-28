@@ -184,6 +184,8 @@ export default function TodayPage() {
             .filter((m) => !m.hidden || view.entries.some((e) => e.mealId === m.id))
             .map((m) => {
               const entries = view.entries.filter((e) => e.mealId === m.id);
+              const eatenKcal = sumNutrients(entries.map((e) => e.nutrients)).kcal;
+              const goal = target.meals.find((g) => g.mealId === m.id);
               return (
                 <Link key={m.id} className="list-row" to="/diary">
                   <div className="grow">
@@ -194,7 +196,7 @@ export default function TodayPage() {
                         : t('Nothing yet', 'Nog niets')}
                     </div>
                   </div>
-                  <span className="num muted">{entries.length ? kcal(sumNutrients(entries.map((e) => e.nutrients)).kcal) : ''}</span>
+                  <span className="num muted">{goal ? `${Math.round(eatenKcal)} / ${kcal(goal.kcal)}` : entries.length ? kcal(eatenKcal) : ''}</span>
                 </Link>
               );
             })}

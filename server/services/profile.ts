@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Profile } from '../../shared/types.ts';
 import { config, validTimeZone } from '../config.ts';
 import { nowIso, one, run } from '../db.ts';
-import { DEFAULT_MET, DEFAULT_NEAT } from './targets.ts';
+import { DEFAULT_MET, DEFAULT_NEAT, MAX_SHIFT_KCAL } from './targets.ts';
 
 const fields = z.object({
   name: z.string().trim().max(60).default(''),
@@ -25,6 +25,19 @@ const fields = z.object({
   metStrength: z.number().min(2).max(10).default(DEFAULT_MET),
   trainingMinutes: z.number().int().min(10).max(180).default(60),
   workoutEnergyShare: z.union([z.literal(0), z.literal(50), z.literal(100)]).default(100),
+  /** Higher days (1 = Monday … 7 = Sunday) with their extra energy; the other days give it back. */
+  shiftDays: z
+    .array(z.number().int().min(1).max(7))
+    .max(6)
+    .default([])
+    .refine((d) => new Set(d).size === d.length, 'each day once'),
+  shiftKcal: z.number().int().min(0).max(MAX_SHIFT_KCAL).default(0),
+  /** The day's target per meal, in % (adding up to 100), or none. */
+  mealShares: z
+    .array(z.object({ mealId: z.number().int().positive(), pct: z.number().int().min(0).max(100) }))
+    .max(10)
+    .default([])
+    .refine((m) => m.every((x) => x.pct === 0) || m.reduce((sum, x) => sum + x.pct, 0) === 100, 'meal shares must add up to 100 %'),
 });
 
 // Every field has a default, so profiles saved by older versions keep parsing when fields are added.

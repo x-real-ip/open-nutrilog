@@ -81,6 +81,26 @@ test('spec example through the API: 1982 on a rest day, 2222 once marked as a tr
   assert.equal((await call('PUT', `/api/days/${today}/mark`, { training: 'yes' })).status, 400);
 });
 
+test('higher days and meal shares through the API; shares must add up to 100 %', async () => {
+  await call('PUT', '/api/profile', { ...spec, shiftDays: [6, 7], shiftKcal: 300, mealShares: [{ mealId: 1, pct: 25 }, { mealId: 2, pct: 35 }, { mealId: 3, pct: 30 }, { mealId: 4, pct: 10 }] });
+  const sat = (await call('GET', '/api/targets/2026-11-28')).body;
+  assert.equal(sat.target.kcal, 2282);
+  assert.ok(sat.target.steps.some((x: any) => x.id === 'shift'));
+  assert.deepEqual(sat.meals.map((m: any) => [m.mealId, m.kcal]), [[1, 571], [2, 799], [3, 685], [4, 228]]);
+  assert.equal((await call('GET', '/api/targets/2026-11-23')).body.target.kcal, 1862);
+
+  // A hidden meal's share goes to the others.
+  await call('PUT', '/api/meals/4', { name: 'Snacks', hidden: true });
+  assert.deepEqual((await call('GET', '/api/targets/2026-11-28')).body.meals.map((m: any) => m.mealId), [1, 2, 3]);
+
+  assert.equal((await call('PUT', '/api/profile', { ...spec, mealShares: [{ mealId: 1, pct: 50 }, { mealId: 2, pct: 40 }] })).status, 400);
+  assert.equal((await call('PUT', '/api/profile', { ...spec, shiftDays: [6, 6], shiftKcal: 300 })).status, 400);
+  assert.equal((await call('PUT', '/api/profile', { ...spec, shiftDays: [1, 2, 3, 4, 5, 6, 7], shiftKcal: 300 })).status, 400);
+  // Without shares, no meal targets.
+  await call('PUT', '/api/profile', spec);
+  assert.deepEqual((await call('GET', '/api/targets/2026-11-28')).body.meals, []);
+});
+
 test('a linked workout makes it a training day; "not a training day" overrides it', async () => {
   await call('PUT', '/api/profile', spec);
   setWorkoutSource(async (from, to) => new Map(from <= today && today <= to ? [[today, { minutes: 45, source: 'finished' as const }]] : []));
