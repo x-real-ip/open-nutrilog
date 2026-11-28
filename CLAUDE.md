@@ -90,6 +90,8 @@ approach and adapt it. There is no shared package between the two repos; copying
   products matched by the normal search; AI nutrient estimates are used only without a match and are stored with
   `ai_estimate`. A coach suggestion (`SUGGESTION {...}`) is only previewed through `targetFor()` and saved after the
   user confirms. Photos are kept only when `storePhotos` is on.
+  A nutrition label read from a photo (`services/labelAi.ts`) only fills in the product form; the user checks and
+  saves it, and label photos are never kept.
 - The e2e tests run against `e2e/fake-ai.mjs`, never a real provider.
 
 ## Picnic (optional, experimental)

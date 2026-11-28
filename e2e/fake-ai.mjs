@@ -1,5 +1,6 @@
 // Stand-ins for the outside services during the browser tests, so they never need the internet:
-// - the Anthropic Messages API: it reads a meal as two foods and makes the coach suggest a slower cut;
+// - the Anthropic Messages API: it reads a meal as two foods, reads a nutrition label, and makes the coach suggest a
+//   slower cut;
 // - Open Food Facts: no product knows any barcode, and the search finds nothing.
 // Started by playwright.config.ts next to the app.
 import http from 'node:http';
@@ -26,7 +27,16 @@ http
     req.on('end', () => {
       const sent = JSON.parse(body);
       const dutch = /in Dutch/.test(sent.system);
-      const text = /You read meals/.test(sent.system)
+      const text = /You read nutrition labels/.test(sent.system)
+        ? JSON.stringify({
+            found: true,
+            name: dutch ? 'Testmueslireep' : 'Test granola bar',
+            brand: 'Testmerk',
+            unit: 'g',
+            per100: { kcal: 380, protein: 8.5, carbs: 62, sugars: 21, fat: 9.8, satFat: 4.1, fibre: 6.2, salt: 0.4 },
+            serving: { label: dutch ? '1 reep' : '1 bar', grams: 35 },
+          })
+        : /You read meals/.test(sent.system)
         ? JSON.stringify({
             items: [
               { name: dutch ? 'testbrood' : 'test bread', grams: 70, estimate: { kcal: 170, protein: 7, carbs: 28, fat: 2 } },

@@ -279,7 +279,7 @@ export interface LinkedStrength {
 
 export type AiProviderId = 'anthropic' | 'openai';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
-export type AiFeature = 'parse' | 'photo' | 'coach' | 'test';
+export type AiFeature = 'parse' | 'photo' | 'label' | 'coach' | 'test';
 
 /** AI settings as the settings page sees them. The API key itself is never sent to the browser. */
 export interface AiSettingsView {
@@ -368,6 +368,15 @@ export interface MealLine {
 
 export interface MealProposal {
   lines: MealLine[];
+}
+
+/** A nutrition label read from a photo: values per 100 g or ml, to check in the product form before saving. */
+export interface LabelReading {
+  name: string | null;
+  brand: string | null;
+  unit: BaseUnit;
+  per100: Nutrients;
+  serving: { label: string; grams: number } | null;
 }
 
 // ---------- Picnic (optional, experimental) ----------

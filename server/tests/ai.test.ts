@@ -145,6 +145,50 @@ test('meal from a photo: the image goes to the AI; kept only when the setting sa
   assert.equal((await call('POST', '/api/ai/meal/photo', { image: 'data:text/html;base64,PGI+' })).status, 400);
 });
 
+test('nutrition label from a photo: values per 100 checked; kJ and sodium converted; no table is an error', async () => {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]).toString('base64');
+  const image = `data:image/jpeg;base64,${jpeg}`;
+  reply = JSON.stringify({
+    found: true,
+    name: 'Granola bar',
+    brand: 'Test',
+    unit: 'g',
+    per100: { kcal: 380, protein: 8.54, carbs: 62, sugars: 21, fat: 9.8, satFat: 4.1, fibre: null, salt: 0.4 },
+    serving: { label: '1 bar', grams: 35 },
+  });
+  let res = await call('POST', '/api/ai/label', { image });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual(res.body.label, {
+    name: 'Granola bar',
+    brand: 'Test',
+    unit: 'g',
+    per100: { kcal: 380, protein: 8.5, carbs: 62, sugars: 21, fat: 9.8, satFat: 4.1, fibre: null, salt: 0.4 },
+    serving: { label: '1 bar', grams: 35 },
+  });
+  assert.equal(requests[0].body.messages[0].content[0].type, 'image');
+  assert.match(requests[0].body.system, /nutrition labels/);
+  assert.equal((await one<{ n: number }>(`SELECT count(*)::int AS n FROM ai_usage WHERE feature = 'label'`))!.n, 1);
+
+  // Only kJ and sodium, per 100 ml.
+  reply = '```json\n' + JSON.stringify({ found: true, unit: 'ml', per100: { kj: 188, carbs: 10.2, sodium: 0.004 }, serving: null }) + '\n```';
+  res = await call('POST', '/api/ai/label', { image });
+  assert.deepEqual(res.body.label, {
+    name: null,
+    brand: null,
+    unit: 'ml',
+    per100: { kcal: 45, protein: null, carbs: 10.2, sugars: null, fat: null, satFat: null, fibre: null, salt: 0.01 },
+    serving: null,
+  });
+
+  reply = JSON.stringify({ found: false });
+  res = await call('POST', '/api/ai/label', { image });
+  assert.equal(res.status, 422);
+  assert.match(res.body.error, /No nutrition table/);
+  reply = JSON.stringify({ found: true, per100: { kcal: 5000 } });
+  assert.equal((await call('POST', '/api/ai/label', { image })).status, 502, 'a value out of range is not taken');
+  assert.equal((await call('POST', '/api/ai/label', { image: 'data:text/html;base64,PGI+' })).status, 400);
+});
+
 test('coach: real data in the prompt; a suggestion is split off and only previewed through the target engine', async () => {
   reply = 'You are doing fine, but a slower cut keeps your training strong.\nSUGGESTION {"phase":"cut","ratePctPerWeek":0.25}';
   const messages = (await call('POST', '/api/coach/messages', { content: 'Should I change anything?' })).body.messages;

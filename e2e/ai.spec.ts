@@ -60,6 +60,37 @@ for (const lang of ['en', 'nl'] as const) {
   });
 }
 
+// A 1×1 PNG: the fake AI doesn't look at it, the browser only has to be able to resize it.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+for (const lang of ['en', 'nl'] as const) {
+  const T = (en: string, nl: string) => (lang === 'nl' ? nl : en);
+
+  test(`a new product from a photo of its nutrition label (${lang})`, async ({ page, request }) => {
+    const errors = collectErrors(page);
+    await request.put('/api/profile', { data: { name: 'Test', language: lang, timeZone: '' } });
+    await page.goto('/diary');
+    await page.getByRole('region', { name: T('Snacks', 'Tussendoortjes'), exact: true }).getByRole('button', { name: T('Add food', 'Eten toevoegen') }).click();
+    const sheet = page.getByRole('dialog');
+    await sheet.getByRole('button', { name: T('New', 'Nieuw') }).click();
+    await sheet.getByLabel(T('Photo of the nutrition label', 'Foto van het voedingsetiket')).setInputFiles({ name: 'label.png', mimeType: 'image/png', buffer: PNG });
+
+    await expect(sheet.getByText(T('Read from the photo.', 'Gelezen van de foto.'), { exact: false })).toBeVisible();
+    await expect(sheet.getByLabel(T('Name', 'Naam'), { exact: true })).toHaveValue(T('Test granola bar', 'Testmueslireep'));
+    await expect(sheet.getByLabel(T('Brand', 'Merk'))).toHaveValue('Testmerk');
+    await expect(sheet.getByLabel(T('Energy (kcal)', 'Energie (kcal)'))).toHaveValue('380');
+    await expect(sheet.getByLabel(T('Fat (g)', 'Vet (g)'))).toHaveValue(T('9.8', '9,8'));
+    await expect(sheet.getByLabel(T('Serving name', 'Naam van de portie'))).toHaveValue(T('1 bar', '1 reep'));
+    await sheet.getByRole('button', { name: T('Save', 'Opslaan'), exact: true }).click();
+
+    // Saved, it opens the amount sheet with the serving from the label.
+    await expect(sheet.getByRole('heading', { name: T('Test granola bar', 'Testmueslireep') })).toBeVisible();
+    await sheet.getByRole('button', { name: T('Add', 'Toevoegen'), exact: true }).click();
+    await expect(page.getByRole('region', { name: T('Total of the day', 'Totaal van de dag') })).toContainText('133 kcal');
+    expect(errors).toEqual([]);
+  });
+}
+
 test('the AI settings page shows AI on, the key only as a hint', async ({ page }) => {
   await page.goto('/ai');
   await expect(page.getByText('AI is on')).toBeVisible();

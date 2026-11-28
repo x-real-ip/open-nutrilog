@@ -9,6 +9,7 @@ import type {
   DiaryDay,
   DiaryEntry,
   EntryInput,
+  LabelReading,
   LinkedStrength,
   MealProposal,
   PhaseSuggestion,
@@ -88,6 +89,7 @@ export const api = {
     request<DiaryDay & { copied: number }>('POST', '/api/diary/copy', body),
   move: (body: { entryIds: string[]; day?: string | null; mealId?: number | null }) => request<{ moved: number }>('POST', '/api/diary/move', body),
 
+  readLabel: (image: string) => request<{ label: LabelReading }>('POST', '/api/ai/label', { image }),
   target: (day: string) => request<TargetResponse>('GET', `/api/targets/${day}`),
   setMark: (day: string, mark: Partial<DayMark>) => request<TargetResponse>('PUT', `/api/days/${day}/mark`, mark),
   bodyWeights: () => request<{ entries: BodyWeightEntry[] }>('GET', '/api/body-weights'),
