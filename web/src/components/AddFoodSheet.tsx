@@ -12,9 +12,9 @@ import { Sheet, toast } from './ui.tsx';
 type Tab = 'recent' | 'frequent' | 'favorites' | 'mine' | 'meals' | 'picnic';
 
 const TABS = (picnic: boolean, meals: boolean): { id: Tab; label: string }[] => [
+  { id: 'frequent', label: t('Frequent', 'Vaak') },
   { id: 'recent', label: t('Recent', 'Recent') },
   ...(meals ? [{ id: 'meals' as Tab, label: t('Saved meals', 'Vaste maaltijden') }] : []),
-  { id: 'frequent', label: t('Frequent', 'Vaak') },
   { id: 'favorites', label: t('Favourites', 'Favorieten') },
   { id: 'mine', label: t('My foods', 'Mijn producten') },
   ...(picnic ? [{ id: 'picnic' as Tab, label: 'Picnic' }] : []),
@@ -172,7 +172,7 @@ export function AddFoodSheet({
   const [results, setResults] = useState<Product[] | null>(null);
   const [lists, setLists] = useState<ProductLists | null>(null);
   const [savedMeals, setSavedMeals] = useState<SavedMeal[] | null>(null);
-  const [tab, setTab] = useState<Tab>('recent');
+  const [tab, setTab] = useState<Tab>('frequent');
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState<'idle' | 'busy' | 'done'>('idle');
   const seq = useRef(0);
@@ -189,7 +189,8 @@ export function AddFoodSheet({
       .then((l) => {
         setLists(l);
         // Start where there is something to pick.
-        setTab(l.recent.length ? 'recent' : l.favorites.length ? 'favorites' : l.mine.length ? 'mine' : 'recent');
+        // What you eat often first; until there is any, what you ate last.
+        setTab(l.frequent.length ? 'frequent' : l.recent.length ? 'recent' : l.favorites.length ? 'favorites' : l.mine.length ? 'mine' : 'frequent');
       })
       .catch((e: Error) => setError(e.message));
     if (onSavedMeal) {

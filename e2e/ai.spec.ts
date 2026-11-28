@@ -41,7 +41,7 @@ for (const lang of ['en', 'nl'] as const) {
     await expect(fruit.getByRole('button', { name: new RegExp(T('AI estimate', 'AI-schatting')) })).toHaveAttribute('aria-pressed', 'true');
     await sheet.getByRole('button', { name: T('Log 2 · 258 kcal', '2 loggen · 258 kcal') }).click();
 
-    await expect(page.getByRole('region', { name: T('Total of the day', 'Totaal van de dag') })).toContainText('258 kcal');
+    await expect(page.getByRole('region', { name: T('Total of the day', 'Totaal van de dag') })).toContainText('258 / 1982 kcal');
     await expect(page.getByRole('button', { name: new RegExp(T('dragon fruit', 'drakenvrucht')) })).toContainText(T('AI estimate', 'AI-schatting'));
 
     // The coach suggests a slower cut; Apply shows what the target engine makes of it; Confirm saves it.
