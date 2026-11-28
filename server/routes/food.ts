@@ -4,6 +4,7 @@ import { langOf, UserError } from '../i18n.ts';
 import { copyEntries, deleteEntry, getDay, moveEntries, putEntry } from '../services/diary.ts';
 import { today } from '../services/days.ts';
 import { addMeal, listMeals, updateMeal } from '../services/meals.ts';
+import { createSavedMeal, deleteSavedMeal, listSavedMeals, updateSavedMeal } from '../services/savedMeals.ts';
 import {
   createProduct,
   deleteProduct,
@@ -93,6 +94,20 @@ export async function foodRoutes(app: FastifyInstance) {
   app.put('/api/meals/:id', async (req) => {
     const { id } = idParam.parse(req.params);
     return { meals: await updateMeal(id, req.body, (await context()).lang) };
+  });
+
+  // ---------- Saved meals ----------
+
+  app.get('/api/saved-meals', async () => ({ savedMeals: await listSavedMeals((await context()).lang) }));
+  app.post('/api/saved-meals', async (req) => createSavedMeal(req.body, (await context()).lang));
+  app.put('/api/saved-meals/:id', async (req) => {
+    const { id } = idParam.parse(req.params);
+    return updateSavedMeal(id, req.body, (await context()).lang);
+  });
+  app.delete('/api/saved-meals/:id', async (req) => {
+    const { id } = idParam.parse(req.params);
+    await deleteSavedMeal(id);
+    return { ok: true };
   });
 
   // ---------- Diary ----------

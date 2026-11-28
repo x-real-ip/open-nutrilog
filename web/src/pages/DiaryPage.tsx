@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { DiaryEntry, Meal, Product } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { useInfo } from '../App.tsx';
-import { api, ApiError, onQueueChange, pendingCount, removeEntry, withPending } from '../api.ts';
+import { api, ApiError, logSavedMeal, onQueueChange, pendingCount, removeEntry, withPending } from '../api.ts';
 import { AddFoodSheet } from '../components/AddFoodSheet.tsx';
 import { AmountSheet } from '../components/AmountSheet.tsx';
 import { BarcodeScanner } from '../components/BarcodeScanner.tsx';
@@ -295,6 +295,12 @@ export default function DiaryPage() {
             entry: null,
           })
         }
+        onSavedMeal={async (m) => {
+          if (sheet?.kind !== 'add') return;
+          setSheet(null);
+          await logSavedMeal(m, day, sheet.mealId);
+          toast(t(`Logged “${m.name}”`, `“${m.name}” gelogd`));
+        }}
         onDescribe={info.aiConfigured ? () => sheet?.kind === 'add' && setSheet({ kind: 'ai', mode: 'text', mealId: sheet.mealId }) : undefined}
         onPhoto={info.aiConfigured ? () => sheet?.kind === 'add' && setSheet({ kind: 'ai', mode: 'photo', mealId: sheet.mealId }) : undefined}
       />
@@ -340,7 +346,7 @@ export default function DiaryPage() {
         meal={sheet?.kind === 'meal' ? sheet.meal : null}
         day={day}
         today={info.today}
-        hasEntries={sheet?.kind === 'meal' ? view.entries.some((e) => e.mealId === sheet.meal.id) : false}
+        entryIds={sheet?.kind === 'meal' ? view.entries.filter((e) => e.mealId === sheet.meal.id).map((e) => e.id) : []}
         onClose={() => setSheet(null)}
         onChanged={() => void reload()}
         onCopyToDays={() =>

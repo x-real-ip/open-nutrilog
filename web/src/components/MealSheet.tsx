@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Meal } from '@shared/types.ts';
-import { api } from '../api.ts';
+import { api, flushQueue, isPending } from '../api.ts';
 import { addDaysTo, dayLabel } from '../format.ts';
 import { t } from '../i18n.ts';
 import { Sheet, toast } from './ui.tsx';
@@ -11,7 +11,7 @@ export function MealSheet({
   meal,
   day,
   today,
-  hasEntries,
+  entryIds,
   onClose,
   onChanged,
   onCopyToDays,
@@ -20,7 +20,8 @@ export function MealSheet({
   meal: Meal | null;
   day: string;
   today: string;
-  hasEntries: boolean;
+  /** The entries of this meal on this day. */
+  entryIds: string[];
   onClose: () => void;
   onChanged: () => void;
   /** Opens the sheet to copy this meal to one or more days. */
@@ -28,9 +29,11 @@ export function MealSheet({
 }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [saveName, setSaveName] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && meal) setName(meal.name);
+    setSaveName(null);
   }, [open, meal]);
 
   if (!meal) return null;
@@ -50,6 +53,15 @@ export function MealSheet({
   };
 
   const yesterday = addDaysTo(day, -1);
+  const hasEntries = entryIds.length > 0;
+
+  const saveAsMeal = () =>
+    run(async () => {
+      // Entries logged on this device have to reach the server first.
+      await flushQueue();
+      if (entryIds.some(isPending)) throw new Error(t('Not synced yet. Try again when you’re online.', 'Nog niet gesynchroniseerd. Probeer het opnieuw als je online bent.'));
+      await api.createSavedMeal(saveName!.trim(), entryIds);
+    }, t('Saved; find it under “Saved meals” when you add food', 'Opgeslagen; je vindt hem onder “Vaste maaltijden” bij eten toevoegen'));
 
   return (
     <Sheet open={open} onClose={onClose} label={meal.name}>
@@ -74,6 +86,14 @@ export function MealSheet({
               </div>
             </button>
           )}
+          {hasEntries && saveName === null && (
+            <button className="list-row" disabled={busy} onClick={() => setSaveName(meal.name)}>
+              <div className="grow">
+                <div className="title">{t('Save as a saved meal…', 'Opslaan als vaste maaltijd…')}</div>
+                <div className="sub">{t('Log these foods together again in one tap', 'Log deze producten later weer samen met één tik')}</div>
+              </div>
+            </button>
+          )}
           {hasEntries && day !== today && (
             <button
               className="list-row"
@@ -86,6 +106,24 @@ export function MealSheet({
             </button>
           )}
         </div>
+
+        {saveName !== null && (
+          <form
+            className="panel stack"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveAsMeal();
+            }}
+          >
+            <label className="field">
+              <span>{t('Name of the saved meal', 'Naam van de vaste maaltijd')}</span>
+              <input className="input" value={saveName} maxLength={60} onChange={(e) => setSaveName(e.target.value)} />
+            </label>
+            <button className="btn primary" disabled={busy || !saveName.trim()}>
+              {t('Save meal', 'Maaltijd opslaan')}
+            </button>
+          </form>
+        )}
 
         <label className="field">
           <span>{t('Name', 'Naam')}</span>
