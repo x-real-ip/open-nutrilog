@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { versionLabel } from '../format.ts';
 import { t } from '../i18n.ts';
@@ -28,17 +28,52 @@ export function BottomNav({ version }: { version: string }) {
   );
 }
 
-export function Sheet({ open, onClose, children, label }: { open: boolean; onClose: () => void; children: ReactNode; label: string }) {
+/** Space the on-screen keyboard takes where the browser doesn't shrink the page for it (Safari on iOS). */
+function keyboardInset(): number {
+  const vv = window.visualViewport;
+  return vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+}
+
+/**
+ * A panel that slides up from the bottom. With the on-screen keyboard open it stays above the keyboard (the viewport
+ * resizes, see index.html; Safari gets the room through --kb), keeps the focused field in view, and the page behind
+ * it doesn't scroll. `tall` gives it a fixed height, so it doesn't jump while its content changes (search results).
+ */
+export function Sheet({ open, onClose, children, label, tall = false }: { open: boolean; onClose: () => void; children: ReactNode; label: string; tall?: boolean }) {
+  const [kb, setKb] = useState(0);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+  useEffect(() => {
+    if (!open) return;
+    const body = document.body.style;
+    const before = body.overflow;
+    body.overflow = 'hidden';
+    const vv = window.visualViewport;
+    const update = () => setKb(keyboardInset());
+    vv?.addEventListener('resize', update);
+    vv?.addEventListener('scroll', update);
+    // Once the keyboard is up, bring the field you are typing in into view inside the sheet.
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.matches('input, textarea')) window.setTimeout(() => el.scrollIntoView({ block: 'nearest' }), 250);
+    };
+    document.addEventListener('focusin', onFocus);
+    return () => {
+      body.overflow = before;
+      vv?.removeEventListener('resize', update);
+      vv?.removeEventListener('scroll', update);
+      document.removeEventListener('focusin', onFocus);
+      setKb(0);
+    };
+  }, [open]);
   if (!open) return null;
   return (
-    <div className="scrim" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
+    <div className="scrim" style={kb ? ({ '--kb': `${kb}px` } as CSSProperties) : undefined} onClick={onClose}>
+      <div className={`sheet${tall ? ' tall' : ''}`} role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
         <div className="grip" />
         {children}
       </div>

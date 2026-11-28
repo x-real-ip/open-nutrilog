@@ -135,7 +135,7 @@ export function ProductForm({
         )}
         <label className="field">
           <span>{t('Name', 'Naam')}</span>
-          <input className="input" value={name} maxLength={160} onChange={(e) => setName(e.target.value)} autoFocus={!product} />
+          <input className="input" value={name} maxLength={160} onChange={(e) => setName(e.target.value)} />
         </label>
         <label className="field">
           <span>{nl ? 'Engelse naam (optioneel)' : 'Dutch name (optional)'}</span>

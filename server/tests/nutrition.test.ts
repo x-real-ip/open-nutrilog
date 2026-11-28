@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { kcalFromMacros, quantityOf, scale, sumNutrients, type Nutrients } from '../../shared/nutrition.ts';
-import { mapOff, normalizeBarcode } from '../services/off.ts';
+import { brandName, mapOff, normalizeBarcode } from '../services/off.ts';
 import { RateLimiter } from '../services/throttle.ts';
 import { queryWords } from '../services/products.ts';
 
@@ -84,6 +84,14 @@ test('OFF mapper: values only per serving are converted to per 100 g', () => {
 test('OFF mapper: no energy value means not usable', () => {
   assert.equal(mapOff(fixture('off-no-energy.json')), null);
   assert.equal(mapOff(null), null);
+});
+
+test('brands: a name from the product API, or a tag from the search service', () => {
+  assert.equal(brandName('Albert Heijn, AH'), 'Albert Heijn');
+  assert.equal(brandName(['xx:jumbo']), 'Jumbo');
+  assert.equal(brandName(['albert-heijn', 'ah']), 'Albert Heijn');
+  assert.equal(brandName(undefined), '');
+  assert.equal(brandName([]), '');
 });
 
 test('barcodes: digits only, 8 to 14 long', () => {

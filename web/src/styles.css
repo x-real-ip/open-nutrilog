@@ -536,18 +536,28 @@ button.list-row:active {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  /* Room for the on-screen keyboard where the browser doesn't shrink the page for it (set by Sheet). */
+  padding-bottom: var(--kb, 0px);
   animation: fade 0.15s ease;
 }
 
 .sheet {
   width: 100%;
   max-width: 560px;
+  /* dvh follows the on-screen keyboard; vh is the fallback for older browsers. */
   max-height: 88vh;
+  max-height: calc(92dvh - var(--kb, 0px));
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--deck);
   border-radius: 20px 20px 0 0;
   padding: 10px 16px calc(20px + var(--safe-b));
   animation: rise 0.2s ease;
+}
+
+.sheet.tall {
+  height: 88vh;
+  height: calc(92dvh - var(--kb, 0px));
 }
 
 .sheet .grip {
@@ -1087,6 +1097,22 @@ details.why summary::-webkit-details-marker {
   font-size: 32px;
   min-height: 64px;
   text-align: center;
+}
+
+.stepper-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 64px;
+  gap: 10px;
+  align-items: center;
+}
+
+.icon-btn.big-step {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-control);
+  font-size: 30px;
+  font-weight: 600;
+  background: var(--deck-2);
 }
 
 .nutri .value {

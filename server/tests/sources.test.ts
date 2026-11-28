@@ -17,6 +17,7 @@ const testDb = await startTestDb();
 const fixture = (name: string) => fs.readFileSync(new URL(`./fixtures/${name}`, import.meta.url));
 const yoghurt = JSON.parse(fixture('off-yoghurt.json').toString());
 let searchCalls = 0;
+let lastSearch: URLSearchParams | null = null;
 const DUMP_HEADER = ['code', 'url', 'product_name', 'brands', 'quantity', 'countries_tags', 'serving_size', 'serving_quantity', 'energy-kcal_100g', 'energy_100g', 'fat_100g', 'carbohydrates_100g', 'sugars_100g', 'proteins_100g', 'salt_100g', 'sodium_100g'];
 const dumpRows = [
   ['8710400000111', 'x', 'Appelstroop', 'Stroopfabriek', '450 g', 'en:netherlands', '15 g', '15', '270', '', '0', '65', '50', '1', '0.1', ''],
@@ -29,10 +30,12 @@ const dumpRows = [
 const dumpText = [DUMP_HEADER, ...dumpRows].map((r) => r.join('\t')).join('\n') + '\n';
 const offServer = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
-  if (url.pathname === '/cgi/search.pl') {
+  if (url.pathname === '/search') {
     searchCalls++;
+    lastSearch = url.searchParams;
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ products: [yoghurt, { code: '1234', product_name: 'Bad barcode', nutriments: { 'energy-kcal_100g': 1 } }, { code: '8710400000999', product_name: 'No energy' }] }));
+    // search-a-licious: hits, brands as tags.
+    res.end(JSON.stringify({ hits: [{ ...yoghurt, brands: ['xx:test-merk'] }, { code: '1234', product_name: 'Bad barcode', nutriments: { 'energy-kcal_100g': 1 } }, { code: '8710400000999', product_name: 'No energy' }] }));
   } else if (url.pathname === '/dump.csv.gz') {
     res.end(zlib.gzipSync(dumpText));
   } else res.writeHead(404).end();
@@ -40,6 +43,7 @@ const offServer = http.createServer((req, res) => {
 await new Promise<void>((r) => offServer.listen(0, '127.0.0.1', r));
 const offBase = `http://127.0.0.1:${(offServer.address() as any).port}`;
 process.env.OFF_BASE_URL = offBase;
+process.env.OFF_SEARCH_URL = `${offBase}/search`;
 
 const { config } = await import('../config.ts');
 const { openDb, closeDb } = await import('../db.ts');
@@ -299,6 +303,9 @@ test('live OFF search: only when asked, cached, unusable results left out, throt
   const online = (await call('GET', '/api/products/search?q=yoghurt&online=1')).body.products;
   assert.equal(searchCalls, 1);
   assert.deepEqual(online.map((p: any) => p.name), ['Volle yoghurt']);
+  assert.equal(online[0].brand, 'Test Merk', 'a brand tag becomes a name');
+  assert.equal(lastSearch?.get('q'), 'yoghurt');
+  assert.equal(lastSearch?.get('langs'), 'nl,en');
   assert.equal((await call('GET', '/api/products/search?q=yoghurt')).body.products.length, 1, 'now cached locally');
 
   const saved = searchLimiter.tryTake;

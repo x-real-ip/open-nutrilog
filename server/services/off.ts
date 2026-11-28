@@ -119,7 +119,7 @@ export function mapOff(p: Record<string, any> | null | undefined): OffProduct | 
   const lang = text(p.lang);
   const nameNl = text(p.product_name_nl) || (lang === 'nl' ? main : '') || main;
   const nameEn = text(p.product_name_en) || (lang === 'en' ? main : '') || main || nameNl;
-  const brand = text(p.brands).split(',')[0]?.trim() ?? '';
+  const brand = brandName(p.brands);
 
   const servings: Serving[] = [];
   const servingLabel = text(p.serving_size);
@@ -135,6 +135,17 @@ export function mapOff(p: Record<string, any> | null | undefined): OffProduct | 
     extra,
     servings,
   };
+}
+
+/**
+ * The first brand. The product API gives "Jumbo, Jumbo Supermarkten"; the search service gives tags like
+ * ["xx:jumbo"], which get their language prefix removed and a capital.
+ */
+export function brandName(brands: unknown): string {
+  const first = (Array.isArray(brands) ? String(brands[0] ?? '') : text(brands).split(',')[0] ?? '').trim();
+  if (!Array.isArray(brands)) return first;
+  const tag = first.replace(/^[a-z]{2}:/, '').replace(/-/g, ' ');
+  return tag.replace(/(^|\s)\p{Ll}/gu, (c) => c.toUpperCase());
 }
 
 /** A barcode as OFF stores it: digits only, 8 to 14 long. */
@@ -173,28 +184,23 @@ export async function fetchOffProduct(barcode: string): Promise<OffResult> {
 export type OffSearchResult = { status: 'ok'; products: OffProduct[] } | { status: 'throttled' } | { status: 'error'; message: string };
 
 /**
- * Live text search at OFF: only when you ask for it (the local search comes first), and within 8 searches a minute
- * (OFF allows 10). Products without usable energy are left out. Never throws.
+ * Live text search at OFF, through its search service (search-a-licious; the older /cgi/search.pl answers 503
+ * nowadays): only when the local search doesn't have it, within 8 searches a minute. Dutch and English names are
+ * searched. Products without usable energy are left out. Never throws.
  */
 export async function searchOff(query: string): Promise<OffSearchResult> {
   if (!searchLimiter.tryTake()) return { status: 'throttled' };
-  const params = new URLSearchParams({
-    search_terms: query,
-    search_simple: '1',
-    action: 'process',
-    json: '1',
-    page_size: '24',
-    fields: OFF_FIELDS.join(','),
-  });
+  const params = new URLSearchParams({ q: query, page_size: '24', langs: 'nl,en', fields: OFF_FIELDS.join(',') });
   try {
-    const res = await fetch(`${config.off.baseUrl}/cgi/search.pl?${params}`, {
+    const res = await fetch(`${config.off.searchUrl}?${params}`, {
       headers: { 'user-agent': userAgent(), accept: 'application/json' },
       signal: AbortSignal.timeout(config.off.timeoutMs),
     });
-    if (res.status === 429 || res.status === 503) return { status: 'throttled' };
+    // 429 is OFF telling us to slow down; anything else (a 503 when their search is down) is an error, not a limit.
+    if (res.status === 429) return { status: 'throttled' };
     if (!res.ok) return { status: 'error', message: `HTTP ${res.status}` };
-    const body = (await res.json()) as { products?: Record<string, unknown>[] };
-    const products = (body.products ?? []).flatMap((p) => {
+    const body = (await res.json()) as { hits?: Record<string, unknown>[] };
+    const products = (body.hits ?? []).flatMap((p) => {
       const mapped = mapOff(p);
       const code = mapped && normalizeBarcode(mapped.barcode);
       return mapped && code ? [{ ...mapped, barcode: code }] : [];

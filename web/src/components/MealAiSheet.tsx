@@ -115,7 +115,7 @@ export function MealAiSheet({ open, mode, day, mealId, mealName, onClose }: { op
   const title = mode === 'text' ? t('Describe a meal', 'Maaltijd beschrijven') : t('Photo of a meal', 'Foto van een maaltijd');
 
   return (
-    <Sheet open={open} onClose={onClose} label={title}>
+    <Sheet open={open} onClose={onClose} label={title} tall>
       <div className="stack">
         <h2 style={{ margin: 0 }}>{title}</h2>
         {!rows ? (

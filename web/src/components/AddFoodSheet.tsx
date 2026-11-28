@@ -17,6 +17,12 @@ const TABS = (): { id: Tab; label: string }[] => [
   { id: 'mine', label: t('My foods', 'Mijn producten') },
 ];
 
+/** Closes the on-screen keyboard by leaving the field that has it. */
+export function blurField() {
+  const el = document.activeElement;
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.blur();
+}
+
 export function SourceBadge({ source }: { source: Product['source'] | null }) {
   if (!source) return null;
   return <span className={`badge ${source}`}>{sourceLabel(source)}</span>;
@@ -79,6 +85,7 @@ export function AddFoodSheet({
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState<'idle' | 'busy' | 'done'>('idle');
   const seq = useRef(0);
+  const autoTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!open) return;
@@ -104,26 +111,35 @@ export function AddFoodSheet({
       setResults(null);
       return;
     }
+    window.clearTimeout(autoTimer.current);
     const n = ++seq.current;
     const timer = window.setTimeout(() => {
       api
         .search(q)
-        .then((r) => n === seq.current && setResults(r.products))
+        .then((r) => {
+          if (n !== seq.current) return;
+          setResults(r.products);
+          // Nothing here: ask Open Food Facts right away (a short pause first, so it isn't every keystroke).
+          if (!r.products.length && q.length >= 3) autoTimer.current = window.setTimeout(() => n === seq.current && void searchOnline(q), 500);
+        })
         .catch((e: Error) => n === seq.current && setError(e.message));
     }, 200);
     return () => window.clearTimeout(timer);
   }, [query]);
 
   // Open Food Facts itself, only when asked: their search limit is low and the local data usually has it.
-  const searchOnline = async () => {
-    const q = query.trim();
+  const searchOnline = async (q: string = query.trim()) => {
+    const n = seq.current;
     setOnline('busy');
     setError(null);
     try {
       const r = await api.searchOnline(q);
-      if (q === query.trim()) {
-        const known = new Set((results ?? []).map((p) => p.id));
-        setResults([...(results ?? []), ...r.products.filter((p) => !known.has(p.id))]);
+      // Only when the query hasn't changed meanwhile.
+      if (n === seq.current) {
+        setResults((cur) => {
+          const known = new Set((cur ?? []).map((p) => p.id));
+          return [...(cur ?? []), ...r.products.filter((p) => !known.has(p.id))];
+        });
       }
       setOnline('done');
     } catch (e) {
@@ -134,7 +150,9 @@ export function AddFoodSheet({
 
   const shown = (results ?? lists?.[tab] ?? []).filter((p) => allowRecipes || p.source !== 'recipe');
   const empty = results
-    ? t('Nothing found. Add it as your own product?', 'Niets gevonden. Als eigen product toevoegen?')
+    ? online === 'busy'
+      ? ''
+      : t('Nothing found.', 'Niets gevonden.')
     : {
         recent: t('What you log shows up here.', 'Wat je logt, verschijnt hier.'),
         frequent: t('What you log more than once shows up here.', 'Wat je vaker logt, verschijnt hier.'),
@@ -143,7 +161,7 @@ export function AddFoodSheet({
       }[tab];
 
   return (
-    <Sheet open={open} onClose={onClose} label={title}>
+    <Sheet open={open} onClose={onClose} label={title} tall>
       <div className="stack">
         <h2 style={{ margin: 0 }}>{title}</h2>
         <input
@@ -154,8 +172,11 @@ export function AddFoodSheet({
           aria-label={t('Search foods', 'Zoek een product')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          // "Search" on the keyboard: put the keyboard away so the results get the room.
+          onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
         />
-        {(onDescribe || onPhoto) && (
+        {/* While you search, the results get the room (the keyboard takes half the screen). */}
+        {!query.trim() && (onDescribe || onPhoto) && (
           <div className="grid-2">
             {onDescribe && (
               <button className="btn" onClick={onDescribe}>
@@ -169,7 +190,7 @@ export function AddFoodSheet({
             )}
           </div>
         )}
-        {(onScan || onQuickAdd || onNewProduct) && (
+        {!query.trim() && (onScan || onQuickAdd || onNewProduct) && (
           <div className="grid-3">
             {onScan && (
               <button className="btn" onClick={onScan}>
@@ -201,7 +222,8 @@ export function AddFoodSheet({
 
         {error && <p className="error">{error}</p>}
         {shown.length > 0 ? (
-          <div className="list">
+          // Scrolling through the results puts the keyboard away, like other apps do.
+          <div className="list" onTouchStart={blurField}>
             {shown.map((p) => (
               <ProductRow key={p.id} product={p} onPick={onPick} />
             ))}
@@ -212,6 +234,11 @@ export function AddFoodSheet({
         {results && results.length < 8 && online !== 'done' && (
           <button className="btn block" disabled={online === 'busy'} onClick={() => void searchOnline()}>
             {online === 'busy' ? t('Searching Open Food Facts…', 'Open Food Facts doorzoeken…') : t('Search Open Food Facts', 'Zoeken in Open Food Facts')}
+          </button>
+        )}
+        {results && onNewProduct && (
+          <button className="link-btn" onClick={() => onNewProduct(query.trim())}>
+            {t(`Add “${query.trim()}” as your own product`, `“${query.trim()}” als eigen product toevoegen`)}
           </button>
         )}
         {tab === 'mine' && !results && allowRecipes && (
