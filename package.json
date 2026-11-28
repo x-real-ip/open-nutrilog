@@ -14,7 +14,9 @@
     "test:e2e": "playwright test -c e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit && npm --prefix web run typecheck",
     "build": "npm --prefix web run build",
-    "build:web": "npm --prefix web run build"
+    "build:web": "npm --prefix web run build",
+    "import:nevo": "node --disable-warning=ExperimentalWarning server/scripts/importNevo.ts",
+    "import:off": "node --disable-warning=ExperimentalWarning server/scripts/importOff.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

@@ -35,6 +35,8 @@ for (const lang of ['en', 'nl'] as const) {
     await page.getByLabel(T('Weight (kg)', 'Gewicht (kg)')).fill('64');
     await page.getByRole('button', { name: T('Save', 'Opslaan'), exact: true }).click();
     await expect(page.getByRole('heading', { name: T('Profile', 'Profiel'), exact: true })).toBeVisible();
+    // Without Open Strength configured the profile says so; everything else works on its own.
+    await expect(page.getByRole('region', { name: 'Open Strength' })).toContainText(T('Not linked', 'Niet gekoppeld'));
 
     // The menu: on a phone the bottom bar, on a desktop the sidebar; same links.
     const menu = page.getByRole('navigation', { name: T('Main menu', 'Hoofdmenu') });

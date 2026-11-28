@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Language, Phase, Profile, Sex } from '@shared/types.ts';
+import type { Language, LinkedStrength, Phase, Profile, Sex } from '@shared/types.ts';
 import { api } from '../api.ts';
 import { useInfo, useRefreshInfo, useSetLanguage } from '../App.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
@@ -188,6 +188,11 @@ export default function ProfilePage() {
         </p>
       </section>
 
+      <StrengthSection
+        onPrefill={(sp) => setP((cur) => ({ ...cur, age: sp.age, heightCm: sp.heightCm, weightKg: cur.weightKg ?? sp.weightKg }))}
+        phaseSaved={Boolean(saved)}
+      />
+
       <section className="section stack">
         <h2>{t('Activity outside training', 'Activiteit buiten training')}</h2>
         <div className="list" role="radiogroup" aria-label={t('Activity outside training', 'Activiteit buiten training')}>
@@ -310,8 +315,57 @@ export default function ProfilePage() {
   );
 }
 
+/**
+ * The link with Open Strength: its status and training goal, a gentle note when goal and phase pull different
+ * ways, and a button to take age, height and weight from there. Loaded after the page, never blocking it.
+ */
+function StrengthSection({ onPrefill, phaseSaved }: { onPrefill: (p: NonNullable<LinkedStrength['profile']>) => void; phaseSaved: boolean }) {
+  const { data } = useLoad(() => api.linkedStrength().catch(() => null));
+  if (!data) return null;
+  const goal = data.profile
+    ? { hypertrophy: t('muscle growth', 'spiermassa'), strength: t('strength', 'kracht'), conditioning: t('conditioning', 'conditie'), fat_loss: t('fat loss', 'vetverlies') }[data.profile.goal]
+    : null;
+  return (
+    <section className="section stack" aria-label="Open Strength">
+      <h2>Open Strength</h2>
+      <div className="panel small stack" style={{ gap: 6 }}>
+        <div>
+          {data.status === 'ok'
+            ? t('Linked: workouts count on training days, and your weigh-ins are shared.', 'Gekoppeld: trainingen tellen mee op trainingsdagen, en je wegingen worden gedeeld.')
+            : data.status === 'unreachable'
+              ? t('Open Strength is not reachable right now; mark training days yourself.', 'Open Strength is nu niet bereikbaar; markeer trainingsdagen zelf.')
+              : t('Not linked. Mark training days yourself on Today.', 'Niet gekoppeld. Markeer trainingsdagen zelf op Vandaag.')}
+        </div>
+        {goal && <div className="muted">{t(`Training goal there: ${goal}`, `Trainingsdoel daar: ${goal}`)}</div>}
+        {data.pendingWeights > 0 && <div className="faint">{t(`${data.pendingWeights} weigh-ins waiting to be sent.`, `${data.pendingWeights} wegingen wachten om verstuurd te worden.`)}</div>}
+      </div>
+      {data.clash && phaseSaved && <p className="notice small" style={{ margin: 0 }}>{data.clash}</p>}
+      {data.profile && (
+        <button className="btn block" onClick={() => onPrefill(data.profile!)}>
+          {t('Use age, height and weight from Open Strength', 'Leeftijd, lengte en gewicht uit Open Strength gebruiken')}
+        </button>
+      )}
+    </section>
+  );
+}
+
 function DataSection() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const nevoRef = useRef<HTMLInputElement>(null);
+  const [nevoBusy, setNevoBusy] = useState(false);
+
+  const importNevo = async (file: File) => {
+    setNevoBusy(true);
+    try {
+      const { nevo } = await api.importNevo(file);
+      toast(t(`${nevo.count} NEVO foods imported (version ${nevo.version})`, `${nevo.count} NEVO-voedingsmiddelen geïmporteerd (versie ${nevo.version})`));
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setNevoBusy(false);
+      if (nevoRef.current) nevoRef.current.value = '';
+    }
+  };
 
   const importFile = async (file: File) => {
     if (!confirm(t('Importing replaces all current data. Continue?', 'Importeren vervangt alle huidige gegevens. Doorgaan?'))) return;
@@ -337,17 +391,37 @@ function DataSection() {
         <a className="list-row" href="/api/export/json" download>
           <div className="grow">
             <div className="title">{t('Export everything', 'Alles exporteren')}</div>
-            <div className="sub">{t('JSON file with all your data', 'JSON-bestand met al je gegevens')}</div>
+            <div className="sub">{t('JSON file with all your data (without NEVO data)', 'JSON-bestand met al je gegevens (zonder NEVO-gegevens)')}</div>
+          </div>
+        </a>
+        <a className="list-row" href="/api/export/diary.csv" download>
+          <div className="grow">
+            <div className="title">{t('Export the diary as CSV', 'Dagboek exporteren als CSV')}</div>
+            <div className="sub">{t('Every logged item, for spreadsheets', 'Alles wat je gelogd hebt, voor spreadsheets')}</div>
           </div>
         </a>
         <button className="list-row" onClick={() => fileRef.current?.click()}>
           <div className="grow">
             <div className="title">{t('Import from an export file', 'Importeren uit exportbestand')}</div>
-            <div className="sub">{t('Replaces the current data', 'Vervangt de huidige gegevens')}</div>
+            <div className="sub">{t('Replaces the current data; NEVO stays', 'Vervangt de huidige gegevens; NEVO blijft staan')}</div>
+          </div>
+        </button>
+        <button className="list-row" disabled={nevoBusy} onClick={() => nevoRef.current?.click()}>
+          <div className="grow">
+            <div className="title">{nevoBusy ? t('Importing NEVO…', 'NEVO importeren…') : t('Import NEVO file', 'NEVO-bestand importeren')}</div>
+            <div className="sub">{t('The CSV (or .zip) from NEVO-online, after accepting RIVM’s conditions', 'De CSV (of .zip) van NEVO-online, na het accepteren van de voorwaarden van het RIVM')}</div>
           </div>
         </button>
       </div>
       <input ref={fileRef} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importFile(e.target.files[0])} />
+      <input
+        ref={nevoRef}
+        type="file"
+        accept=".csv,.txt,.zip,text/csv,application/zip"
+        hidden
+        aria-label={t('NEVO file', 'NEVO-bestand')}
+        onChange={(e) => e.target.files?.[0] && void importNevo(e.target.files[0])}
+      />
     </section>
   );
 }
@@ -357,6 +431,19 @@ function AboutSection() {
   return (
     <section className="section stack">
       <h2>{t('About the app', 'Over de app')}</h2>
+      <div className="list">
+        <Link className="list-row" to="/recipes">
+          <div className="grow">
+            <div className="title">{t('My recipes', 'Mijn recepten')}</div>
+          </div>
+        </Link>
+        <Link className="list-row" to="/sources">
+          <div className="grow">
+            <div className="title">{t('Sources', 'Bronnen')}</div>
+            <div className="sub">{t('Open Food Facts, NEVO and your own data', 'Open Food Facts, NEVO en je eigen gegevens')}</div>
+          </div>
+        </Link>
+      </div>
       <div className="panel small muted stack" style={{ gap: 4 }}>
         {info.user && info.authMode !== 'none' && (
           <div>

@@ -40,6 +40,8 @@ export function sourceLabel(source: ProductSource | null): string {
       return 'NEVO';
     case 'custom':
       return t('Mine', 'Eigen');
+    case 'recipe':
+      return t('Recipe', 'Recept');
     default:
       return '';
   }
@@ -58,4 +60,11 @@ export function macroLine(n: Nutrients): string {
 export function parseNumber(text: string): number | null {
   const n = Number(text.trim().replace(',', '.'));
   return text.trim() !== '' && Number.isFinite(n) ? n : null;
+}
+
+/** Where a product's values come from, as a short note under its name. */
+export function sourceNote(source: ProductSource | null, version: string | null): string {
+  if (source === 'nevo') return `NEVO-online${version ? ` ${version}` : ''}, RIVM`;
+  if (source === 'off') return t('Open Food Facts (ODbL)', 'Open Food Facts (ODbL)');
+  return '';
 }

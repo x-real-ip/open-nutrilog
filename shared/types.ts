@@ -55,8 +55,7 @@ export interface AppInfo {
 
 // ---------- Food ----------
 
-
-export type ProductSource = 'off' | 'nevo' | 'custom';
+export type ProductSource = 'off' | 'nevo' | 'custom' | 'recipe';
 export type ProductPreference = 'favorite' | 'hidden';
 
 export interface Product {
@@ -79,6 +78,45 @@ export interface Product {
   overrideOf: number | null;
   /** NEVO version or OFF fetch date, for the source note. */
   sourceVersion: string | null;
+  /** For a recipe: the number of portions (its one serving is a portion). */
+  portions: number | null;
+}
+
+export interface RecipeIngredient {
+  productId: number;
+  name: string;
+  brand: string;
+  source: ProductSource;
+  amount: number;
+  unit: 'g' | 'ml' | 'serving';
+  servingLabel: string | null;
+  /** Grams (or ml). */
+  quantity: number;
+  kcal: number;
+}
+
+export interface Recipe {
+  product: Product;
+  portions: number;
+  /** Weight after cooking; null: the ingredients added up. */
+  cookedWeightG: number | null;
+  /** The weight the values per 100 g are based on. */
+  totalWeightG: number;
+  ingredients: RecipeIngredient[];
+  perPortion: Nutrients;
+}
+
+export interface RecipeInput {
+  name: string;
+  portions: number;
+  cookedWeightG: number | null;
+  ingredients: { productId: number; amount: number; unit: 'g' | 'ml' | 'serving'; servingLabel?: string | null }[];
+}
+
+/** Where the food data comes from, for the About / sources page. */
+export interface SourcesInfo {
+  nevo: { version: string; importedAt: string; count: number; attribution: string } | null;
+  off: { products: number; lastImport: { at: string; imported: number } | null };
 }
 
 /** What you fill in for your own product or a local edit. */
@@ -218,4 +256,16 @@ export interface ProgressResponse {
   /** Over the last 7 complete logged days. */
   averages: { days: number; kcal: number; proteinG: number; carbsG: number; fatG: number } | null;
   tdee: { weekStart: string; baseKcal: number; formulaKcal: number; adaptiveKcal: number | null }[];
+}
+
+// ---------- Open Strength ----------
+
+/** The link with Open Strength, for the PWA (GET /api/linked/strength). */
+export interface LinkedStrength {
+  status: 'off' | 'ok' | 'unreachable';
+  profile: { goal: 'hypertrophy' | 'strength' | 'conditioning' | 'fat_loss'; level: string; age: number; heightCm: number; weightKg: number; language: Language } | null;
+  todayWorkouts: { id: number; status: 'in_progress' | 'completed'; durationMinutes: number; dayName: string; totalSets: number; volumeKg: number }[];
+  clash: string | null;
+  /** Weigh-ins waiting to be sent. */
+  pendingWeights: number;
 }

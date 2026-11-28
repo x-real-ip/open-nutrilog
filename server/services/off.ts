@@ -169,3 +169,38 @@ export async function fetchOffProduct(barcode: string): Promise<OffResult> {
     return { status: 'error', message: (err as Error).message };
   }
 }
+
+export type OffSearchResult = { status: 'ok'; products: OffProduct[] } | { status: 'throttled' } | { status: 'error'; message: string };
+
+/**
+ * Live text search at OFF: only when you ask for it (the local search comes first), and within 8 searches a minute
+ * (OFF allows 10). Products without usable energy are left out. Never throws.
+ */
+export async function searchOff(query: string): Promise<OffSearchResult> {
+  if (!searchLimiter.tryTake()) return { status: 'throttled' };
+  const params = new URLSearchParams({
+    search_terms: query,
+    search_simple: '1',
+    action: 'process',
+    json: '1',
+    page_size: '24',
+    fields: OFF_FIELDS.join(','),
+  });
+  try {
+    const res = await fetch(`${config.off.baseUrl}/cgi/search.pl?${params}`, {
+      headers: { 'user-agent': userAgent(), accept: 'application/json' },
+      signal: AbortSignal.timeout(config.off.timeoutMs),
+    });
+    if (res.status === 429 || res.status === 503) return { status: 'throttled' };
+    if (!res.ok) return { status: 'error', message: `HTTP ${res.status}` };
+    const body = (await res.json()) as { products?: Record<string, unknown>[] };
+    const products = (body.products ?? []).flatMap((p) => {
+      const mapped = mapOff(p);
+      const code = mapped && normalizeBarcode(mapped.barcode);
+      return mapped && code ? [{ ...mapped, barcode: code }] : [];
+    });
+    return { status: 'ok', products };
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
+}

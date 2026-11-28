@@ -11,9 +11,11 @@ import {
   lookupBarcode,
   productLists,
   searchProducts,
+  searchOnline,
   setPreference,
   updateProduct,
 } from '../services/products.ts';
+import { getRecipe, saveRecipe } from '../services/recipes.ts';
 import { getProfile, timeZoneOf } from '../services/profile.ts';
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
@@ -27,10 +29,11 @@ async function context() {
 export async function foodRoutes(app: FastifyInstance) {
   // ---------- Products ----------
 
+  // Local search; with online=1 the query also goes to Open Food Facts (only when you ask: OFF's search limit is low).
   app.get('/api/products/search', async (req) => {
-    const { q } = z.object({ q: z.string().max(120).default('') }).parse(req.query);
+    const { q, online } = z.object({ q: z.string().max(120).default(''), online: z.enum(['0', '1']).default('0') }).parse(req.query);
     const { lang, today } = await context();
-    return { products: await searchProducts(q, lang, today) };
+    return { products: online === '1' ? await searchOnline(q, lang) : await searchProducts(q, lang, today) };
   });
 
   app.get('/api/products/lists', async () => {
@@ -69,6 +72,18 @@ export async function foodRoutes(app: FastifyInstance) {
     const { preference } = z.object({ preference: z.enum(['favorite', 'hidden']).nullable() }).strict().parse(req.body);
     await setPreference(id, preference);
     return { product: await getProduct(id, (await context()).lang) };
+  });
+
+  // ---------- Recipes (a recipe is a product; delete it like one) ----------
+
+  app.get('/api/recipes/:id', async (req) => {
+    const { id } = idParam.parse(req.params);
+    return { recipe: await getRecipe(id, (await context()).lang) };
+  });
+  app.post('/api/recipes', async (req) => ({ recipe: await saveRecipe(null, req.body, (await context()).lang) }));
+  app.put('/api/recipes/:id', async (req) => {
+    const { id } = idParam.parse(req.params);
+    return { recipe: await saveRecipe(id, req.body, (await context()).lang) };
   });
 
   // ---------- Meals ----------

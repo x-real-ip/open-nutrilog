@@ -183,7 +183,7 @@ export default function DiaryPage() {
 
       <AddFoodSheet
         open={sheet?.kind === 'add'}
-        mealName={sheet?.kind === 'add' ? mealName(sheet.mealId) : ''}
+        title={sheet?.kind === 'add' ? t(`Add to ${mealName(sheet.mealId).toLowerCase()}`, `Toevoegen aan ${mealName(sheet.mealId).toLowerCase()}`) : ''}
         onClose={() => setSheet(null)}
         onPick={(product) => sheet?.kind === 'add' && setSheet({ kind: 'amount', mealId: sheet.mealId, product, entry: null })}
         onScan={() => sheet?.kind === 'add' && setSheet({ kind: 'scan', mealId: sheet.mealId })}

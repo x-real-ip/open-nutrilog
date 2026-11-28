@@ -108,6 +108,10 @@ export const config = {
     timeoutMs: num('OFF_TIMEOUT_MS', 8000),
     /** A cached product is fetched again after this many days. */
     refreshDays: num('OFF_REFRESH_DAYS', 30),
+    /** The CSV export that `npm run import:off` streams. */
+    dumpUrl: str('OFF_DUMP_URL') ?? 'https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz',
+    /** countries_tags to import from the dump. */
+    importCountries: str('OFF_IMPORT_COUNTRIES') ? list('OFF_IMPORT_COUNTRIES') : ['en:netherlands', 'en:belgium'],
   },
 
   /**
@@ -115,6 +119,17 @@ export const config = {
    * this is the default. TZ is the standard variable; without it the Netherlands.
    */
   timeZone: validTimeZone(str('TZ')) ?? 'Europe/Amsterdam',
+  /**
+   * The link with Open Strength. INTEGRATION_TOKEN is the token Open Strength must send to /api/integration/v1/*
+   * (without it those routes don't exist); STRENGTH_URL + STRENGTH_TOKEN are how this app reaches Open Strength.
+   * Each direction has its own token. Without them the app works on its own.
+   */
+  integration: {
+    token: str('INTEGRATION_TOKEN') ?? '',
+    strengthUrl: (str('STRENGTH_URL') ?? '').replace(/\/$/, ''),
+    strengthToken: str('STRENGTH_TOKEN') ?? '',
+    timeoutMs: num('STRENGTH_TIMEOUT_MS', 2000),
+  },
   version: appVersion(),
 };
 

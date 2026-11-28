@@ -1036,6 +1036,11 @@ details.why summary::-webkit-details-marker {
   color: #8fd6a9;
 }
 
+.badge.recipe {
+  background: color-mix(in srgb, var(--plate-yellow) 22%, transparent);
+  color: #f0d488;
+}
+
 .badge.nevo {
   background: color-mix(in srgb, var(--plate-blue) 22%, transparent);
   color: #a9c8f8;
