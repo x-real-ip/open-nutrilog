@@ -6,7 +6,8 @@ import { useInfo } from '../App.tsx';
 import { api, onQueueChange, withPending } from '../api.ts';
 import { FastingCard } from '../components/FastingCard.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
-import { grams, kcal, longDate, versionLabel } from '../format.ts';
+import { IconChevron } from '../components/Icons.tsx';
+import { grams, kcal, kg, longDate, signed, versionLabel } from '../format.ts';
 import { t } from '../i18n.ts';
 
 /** A ring that fills as the day's target is eaten; red when over. */
@@ -97,6 +98,8 @@ export default function TodayPage() {
   const { data, error, loading, reload, setData } = useLoad(() => Promise.all([api.profile(), api.day(info.today), api.target(info.today)]));
   const [, setTick] = useState(0);
   useEffect(() => onQueueChange(() => setTick((n) => n + 1)), []);
+  // Last week at a glance; loaded separately, so the page never waits for it.
+  const week = useLoad(() => api.weekReport());
 
   if (loading && !data) return <Loading />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
@@ -185,6 +188,8 @@ export default function TodayPage() {
             .filter((m) => !m.hidden || view.entries.some((e) => e.mealId === m.id))
             .map((m) => {
               const entries = view.entries.filter((e) => e.mealId === m.id);
+              const eatenKcal = sumNutrients(entries.map((e) => e.nutrients)).kcal;
+              const goal = target.meals.find((g) => g.mealId === m.id);
               return (
                 <Link key={m.id} className="list-row" to="/diary">
                   <div className="grow">
@@ -195,7 +200,7 @@ export default function TodayPage() {
                         : t('Nothing yet', 'Nog niets')}
                     </div>
                   </div>
-                  <span className="num muted">{entries.length ? kcal(sumNutrients(entries.map((e) => e.nutrients)).kcal) : ''}</span>
+                  <span className="num muted">{goal ? `${Math.round(eatenKcal)} / ${kcal(goal.kcal)}` : entries.length ? kcal(eatenKcal) : ''}</span>
                 </Link>
               );
             })}
@@ -203,6 +208,25 @@ export default function TodayPage() {
       </section>
 
       {profile?.fasting && <FastingCard defaultGoal={profile.fastingGoalHours} />}
+      {week.data && week.data.completeDays > 0 && (
+        <section className="section list">
+          <Link className="list-row" to="/week" aria-label={t('Last week: weekly report', 'Vorige week: weekoverzicht')}>
+            <div className="grow">
+              <div className="title">{t('Last week', 'Vorige week')}</div>
+              <div className="sub">
+                {[
+                  week.data.avgKcal !== null ? t(`${kcal(week.data.avgKcal)} a day`, `${kcal(week.data.avgKcal)} per dag`) : null,
+                  week.data.proteinTargetDays ? t(`protein ${week.data.proteinHitDays}/${week.data.proteinTargetDays} days`, `eiwit ${week.data.proteinHitDays}/${week.data.proteinTargetDays} dagen`) : null,
+                  week.data.trendChangeKg !== null ? `${signed(week.data.trendChangeKg, kg)} kg` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+            </div>
+            <IconChevron />
+          </Link>
+        </section>
+      )}
 
       <section className="section stack">
         <Link className="btn primary big block" to="/diary">

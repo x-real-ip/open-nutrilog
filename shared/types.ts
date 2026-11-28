@@ -38,6 +38,11 @@ export interface Profile {
   /** Show the fasting timer on Today, and the goal a new fast starts with. */
   fasting: boolean;
   fastingGoalHours: number;
+  /** Higher days (1 = Monday … 7 = Sunday) that get `shiftKcal` more; the other days get less, so the week stays the same. */
+  shiftDays: number[];
+  shiftKcal: number;
+  /** The day's target per meal in %, adding up to 100; empty for no meal targets. */
+  mealShares: { mealId: number; pct: number }[];
   updatedAt?: string;
 }
 
@@ -254,6 +259,8 @@ export interface TargetResponse {
   missing: ('sex' | 'age' | 'heightCm' | 'weightKg')[];
   mark: DayMark;
   adaptive: AdaptiveView | null;
+  /** The target per meal, when you set shares per meal. */
+  meals: { mealId: number; kcal: number; proteinG: number }[];
 }
 
 export interface BodyWeightEntry {
@@ -302,6 +309,39 @@ export interface FastingState {
   recent: Fast[];
 }
 
+/** One week (Monday to Sunday) looked back on. Averages count only complete logged days up to today. */
+export interface WeekReport {
+  weekStart: string;
+  weekEnd: string;
+  /** The week before; the week after, unless that is still to come. */
+  previous: string;
+  next: string | null;
+  days: ProgressDay[];
+  /** Days with something logged (also incomplete ones), and of those the complete ones. */
+  loggedDays: number;
+  completeDays: number;
+  /** Days of the week up to today. */
+  daysSoFar: number;
+  avgKcal: number | null;
+  avgTargetKcal: number | null;
+  /** Eaten minus target, added up over the complete days: below zero is under target. */
+  balanceKcal: number | null;
+  avgProteinG: number | null;
+  avgCarbsG: number | null;
+  avgFatG: number | null;
+  /** Complete days that reached at least 95 % of the protein target, out of the complete days with a target. */
+  proteinHitDays: number;
+  proteinTargetDays: number;
+  trainingDays: number;
+  /** Trend weight at the start and end of the week, and the change. */
+  trendStartKg: number | null;
+  trendEndKg: number | null;
+  trendChangeKg: number | null;
+  weighIns: number;
+  /** What gave the most energy this week. */
+  topFoods: { name: string; kcal: number; times: number }[];
+}
+
 // ---------- Open Strength ----------
 
 /** The link with Open Strength, for the PWA (GET /api/linked/strength). */
@@ -318,7 +358,7 @@ export interface LinkedStrength {
 
 export type AiProviderId = 'anthropic' | 'openai';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
-export type AiFeature = 'parse' | 'photo' | 'coach' | 'test';
+export type AiFeature = 'parse' | 'photo' | 'label' | 'coach' | 'test';
 
 /** AI settings as the settings page sees them. The API key itself is never sent to the browser. */
 export interface AiSettingsView {
@@ -407,6 +447,15 @@ export interface MealLine {
 
 export interface MealProposal {
   lines: MealLine[];
+}
+
+/** A nutrition label read from a photo: values per 100 g or ml, to check in the product form before saving. */
+export interface LabelReading {
+  name: string | null;
+  brand: string | null;
+  unit: BaseUnit;
+  per100: Nutrients;
+  serving: { label: string; grams: number } | null;
 }
 
 // ---------- Picnic (optional, experimental) ----------

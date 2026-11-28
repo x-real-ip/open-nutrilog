@@ -4,6 +4,7 @@ import { langOf } from '../i18n.ts';
 import { clearMessages, listMessages, sendMessage, suggestionSchema } from '../services/coach.ts';
 import { targetFor } from '../services/dayTargets.ts';
 import { today } from '../services/days.ts';
+import { readLabel } from '../services/labelAi.ts';
 import { readMealPhoto, readMealText } from '../services/mealAi.ts';
 import { getProfile, timeZoneOf } from '../services/profile.ts';
 
@@ -26,6 +27,12 @@ export async function aiRoutes(app: FastifyInstance) {
     const { image, note } = z.object({ image: z.string().max(3_500_000), note: z.string().max(500).default('') }).strict().parse(req.body);
     const { lang, today: day } = await context();
     return readMealPhoto(image, note, lang, day);
+  });
+
+  // The nutrition table on a pack, to fill in a new product. The photo is not kept.
+  app.post('/api/ai/label', { bodyLimit: 4 * 1024 * 1024 }, async (req) => {
+    const { image } = z.object({ image: z.string().max(3_500_000) }).strict().parse(req.body);
+    return readLabel(image, (await context()).lang);
   });
 
   app.get('/api/coach/messages', async () => ({ messages: await listMessages() }));

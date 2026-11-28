@@ -40,11 +40,11 @@ beforeEach(async () => {
   today = (await call('GET', '/api/info')).body.today;
 });
 
-async function eat(day: string, kcal: number) {
+async function eat(day: string, kcal: number, protein = 100, name = 'x') {
   await run(
     `INSERT INTO diary_entries (id, day, meal_id, name, amount, unit, quantity, kcal, protein, carbs, fat, created_at, updated_at)
-     VALUES ($1, $2, 1, 'x', $3, 'kcal', 0, $3, 100, 250, 80, now(), now())`,
-    [crypto.randomUUID(), day, kcal],
+     VALUES ($1, $2, 1, $4, $3, 'kcal', 0, $3, $5, 250, 80, now(), now())`,
+    [crypto.randomUUID(), day, kcal, name, protein],
   );
 }
 
@@ -79,6 +79,26 @@ test('spec example through the API: 1982 on a rest day, 2222 once marked as a tr
   r = (await call('PUT', `/api/days/${today}/mark`, { training: null })).body;
   assert.equal(r.target.kcal, 1982);
   assert.equal((await call('PUT', `/api/days/${today}/mark`, { training: 'yes' })).status, 400);
+});
+
+test('higher days and meal shares through the API; shares must add up to 100 %', async () => {
+  await call('PUT', '/api/profile', { ...spec, shiftDays: [6, 7], shiftKcal: 300, mealShares: [{ mealId: 1, pct: 25 }, { mealId: 2, pct: 35 }, { mealId: 3, pct: 30 }, { mealId: 4, pct: 10 }] });
+  const sat = (await call('GET', '/api/targets/2026-11-28')).body;
+  assert.equal(sat.target.kcal, 2282);
+  assert.ok(sat.target.steps.some((x: any) => x.id === 'shift'));
+  assert.deepEqual(sat.meals.map((m: any) => [m.mealId, m.kcal]), [[1, 571], [2, 799], [3, 685], [4, 228]]);
+  assert.equal((await call('GET', '/api/targets/2026-11-23')).body.target.kcal, 1862);
+
+  // A hidden meal's share goes to the others.
+  await call('PUT', '/api/meals/4', { name: 'Snacks', hidden: true });
+  assert.deepEqual((await call('GET', '/api/targets/2026-11-28')).body.meals.map((m: any) => m.mealId), [1, 2, 3]);
+
+  assert.equal((await call('PUT', '/api/profile', { ...spec, mealShares: [{ mealId: 1, pct: 50 }, { mealId: 2, pct: 40 }] })).status, 400);
+  assert.equal((await call('PUT', '/api/profile', { ...spec, shiftDays: [6, 6], shiftKcal: 300 })).status, 400);
+  assert.equal((await call('PUT', '/api/profile', { ...spec, shiftDays: [1, 2, 3, 4, 5, 6, 7], shiftKcal: 300 })).status, 400);
+  // Without shares, no meal targets.
+  await call('PUT', '/api/profile', spec);
+  assert.deepEqual((await call('GET', '/api/targets/2026-11-28')).body.meals, []);
 });
 
 test('a linked workout makes it a training day; "not a training day" overrides it', async () => {
@@ -212,6 +232,47 @@ test('fasting: start (also back in time), change, end; one at a time; history; e
   assert.equal(r.recent.length, 2);
   r = (await call('DELETE', `/api/fasting/${r.recent[0].id}`)).body;
   assert.equal(r.recent.length, 1);
+});
+
+test('week report: last week by default; complete days only; protein days; trend; top foods', async () => {
+  await call('PUT', '/api/profile', spec);
+  const wk = weekStart(addDays(today, -7));
+  const weigh = (d: string, kg: number) => run('INSERT INTO body_weights (measured_on, weight_kg, created_at) VALUES ($1, $2, now())', [d, kg]);
+  await weigh(addDays(wk, -3), 80);
+  await weigh(addDays(wk, 6), 78);
+  await eat(wk, 1800);
+  await eat(addDays(wk, 1), 1500);
+  await eat(addDays(wk, 1), 300, 0, '{"en":"Cake","nl":"Taart"}');
+  await eat(addDays(wk, 2), 2100);
+  await call('PUT', `/api/days/${addDays(wk, 2)}/mark`, { incomplete: true });
+  await eat(addDays(wk, 3), 1900, 170);
+
+  const r = (await call('GET', '/api/week-report')).body;
+  assert.equal(r.weekStart, wk);
+  assert.equal(r.weekEnd, addDays(wk, 6));
+  assert.equal(r.previous, addDays(wk, -7));
+  assert.equal(r.next, weekStart(today));
+  assert.equal(r.days.length, 7);
+  assert.deepEqual([r.daysSoFar, r.loggedDays, r.completeDays], [7, 4, 3], 'the incomplete day is logged but not complete');
+  assert.equal(r.avgKcal, 1833);
+  assert.equal(r.avgTargetKcal, 1982);
+  assert.equal(r.balanceKcal, 1800 - 1982 + (1800 - 1982) + (1900 - 1982));
+  assert.deepEqual([r.proteinHitDays, r.proteinTargetDays], [1, 3], '170 g reaches 95 % of 160 g; 100 g does not');
+  assert.equal(r.avgProteinG, 123);
+  assert.equal(r.trainingDays, 0);
+  assert.deepEqual([r.trendStartKg, r.trendEndKg, r.trendChangeKg, r.weighIns], [80, 79.8, -0.2, 1]);
+  assert.deepEqual(r.topFoods, [
+    { name: 'x', kcal: 7300, times: 4 },
+    { name: 'Cake', kcal: 300, times: 1 },
+  ]);
+
+  // This week has no next; a week still to come gives this week; a bad day is refused.
+  const now = (await call('GET', `/api/week-report?day=${today}`)).body;
+  assert.equal(now.weekStart, weekStart(today));
+  assert.equal(now.next, null);
+  assert.equal(now.days.filter((d: any) => d.date <= today).length, now.daysSoFar);
+  assert.equal((await call('GET', `/api/week-report?day=${addDays(today, 30)}`)).body.weekStart, weekStart(today));
+  assert.equal((await call('GET', '/api/week-report?day=yesterday')).status, 400);
 });
 
 test('marks, weights and the maintenance history survive export and import', async () => {

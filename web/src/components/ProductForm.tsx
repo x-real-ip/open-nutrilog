@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import type { Product, ProductInput } from '@shared/types.ts';
+import { useEffect, useRef, useState } from 'react';
+import type { LabelReading, Product, ProductInput } from '@shared/types.ts';
 import { kcalFromMacros, NUTRIENT_KEYS, type NutrientKey, type Nutrients } from '@shared/nutrition.ts';
+import { useInfo } from '../App.tsx';
 import { api } from '../api.ts';
 import { parseNumber } from '../food.ts';
 import { num } from '../format.ts';
 import { getLang, t } from '../i18n.ts';
+import { resizePhoto } from '../photo.ts';
 import { IconClose, IconPlus } from './Icons.tsx';
 import { Sheet, toast } from './ui.tsx';
 
@@ -60,6 +62,10 @@ export function ProductForm({
   const [servings, setServings] = useState<{ label: string; grams: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [fromLabel, setFromLabel] = useState(false);
+  const labelInput = useRef<HTMLInputElement>(null);
+  const info = useInfo();
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +77,7 @@ export function ProductForm({
     setValues(toTexts(product?.per100 ?? null));
     setServings((product?.servings ?? []).map((s) => ({ label: s.label, grams: num(s.grams, 1) })));
     setError(null);
+    setFromLabel(false);
   }, [open, product, initialName, initialBarcode, initialBrand, initialUnit, nl]);
 
   const parsed = Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, parseNumber(values[k])])) as Record<NutrientKey, number | null>;
@@ -105,6 +112,30 @@ export function ProductForm({
       setError((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Fills the form from the label; name and brand only where they are still empty. */
+  const applyLabel = (l: LabelReading) => {
+    setUnit(l.unit);
+    setValues(toTexts(l.per100));
+    if (!name.trim() && l.name) setName(l.name);
+    if (!brand.trim() && l.brand) setBrand(l.brand);
+    const serving = l.serving;
+    if (serving) setServings((list) => (list.some((s) => s.label.trim() === serving.label) ? list : [...list, { label: serving.label, grams: num(serving.grams, 1) }]));
+    setFromLabel(true);
+  };
+
+  const readLabel = async (file: File) => {
+    setReading(true);
+    setError(null);
+    try {
+      applyLabel((await api.readLabel(await resizePhoto(file, 1568, 0.85))).label);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReading(false);
+      if (labelInput.current) labelInput.current.value = '';
     }
   };
 
@@ -159,6 +190,30 @@ export function ProductForm({
           </label>
         </div>
 
+        {info.aiConfigured && (
+          <div className="stack" style={{ gap: 4 }}>
+            <button type="button" className="btn block" disabled={reading} onClick={() => labelInput.current?.click()}>
+              {reading ? t('Reading the label…', 'Etiket lezen…') : t('Read the label from a photo', 'Etiket lezen van een foto')}
+            </button>
+            <input
+              ref={labelInput}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              aria-label={t('Photo of the nutrition label', 'Foto van het voedingsetiket')}
+              onChange={(e) => e.target.files?.[0] && void readLabel(e.target.files[0])}
+            />
+            <span className="small muted">
+              {t(`The photo is sent to your AI provider (${info.aiModel}) and not kept.`, `De foto gaat naar je AI-aanbieder (${info.aiModel}) en wordt niet bewaard.`)}
+            </span>
+          </div>
+        )}
+        {fromLabel && (
+          <p className="notice small" style={{ margin: 0 }}>
+            {t('Read from the photo. Check the values against the pack before you save.', 'Gelezen van de foto. Controleer de waarden met de verpakking voordat je opslaat.')}
+          </p>
+        )}
         {hint && (
           <div className="panel small stack hint-text" style={{ gap: 6 }}>
             <b>{hint.title}</b>

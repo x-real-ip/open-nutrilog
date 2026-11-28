@@ -44,7 +44,21 @@ const empty = (): ProfileInput => ({
   workoutEnergyShare: 100,
   fasting: false,
   fastingGoalHours: 16,
+  shiftDays: [],
+  shiftKcal: 0,
+  mealShares: [],
 });
+
+const WEEKDAYS = (): string[] => [
+  t('Mon', 'ma'),
+  t('Tue', 'di'),
+  t('Wed', 'wo'),
+  t('Thu', 'do'),
+  t('Fri', 'vr'),
+  t('Sat', 'za'),
+  t('Sun', 'zo'),
+];
+const SHIFT_KCAL = [100, 200, 300, 400, 500];
 
 /** Strip server-only fields so a saved profile can be sent back as is. */
 function input(p: Profile): ProfileInput {
@@ -84,6 +98,7 @@ export default function ProfilePage() {
   const refreshInfo = useRefreshInfo();
   const setLanguage = useSetLanguage();
   const { data, error, loading, reload } = useLoad(() => api.profile());
+  const meals = useLoad(() => api.meals().then((r) => r.meals.filter((m) => !m.hidden)));
   const [p, setP] = useState<ProfileInput>(empty);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -115,7 +130,30 @@ export default function ProfilePage() {
     }
   };
 
+  const sharesTotal = p.mealShares.reduce((sum, x) => sum + x.pct, 0);
+  const shareOf = (mealId: number) => p.mealShares.find((x) => x.mealId === mealId)?.pct ?? null;
+  const setShare = (mealId: number, pct: number | null) =>
+    setP((cur) => ({
+      ...cur,
+      mealShares: [...cur.mealShares.filter((x) => x.mealId !== mealId), ...(pct ? [{ mealId, pct: Math.max(0, Math.min(100, Math.round(pct))) }] : [])].sort((a, b) => a.mealId - b.mealId),
+    }));
+  /** A usual split: breakfast a quarter, lunch and dinner the most, snacks the rest; else equal parts. */
+  const suggestShares = () => {
+    const list = meals.data ?? [];
+    const usual = list.length === 4 ? [25, 35, 30, 10] : list.map((_, i) => Math.floor(100 / list.length) + (i < 100 % list.length ? 1 : 0));
+    set('mealShares', list.map((m, i) => ({ mealId: m.id, pct: usual[i] })));
+  };
+  const toggleShiftDay = (d: number) =>
+    setP((cur) => {
+      const days = cur.shiftDays.includes(d) ? cur.shiftDays.filter((x) => x !== d) : [...cur.shiftDays, d].sort();
+      return { ...cur, shiftDays: days, shiftKcal: days.length && !cur.shiftKcal ? 300 : cur.shiftKcal };
+    });
+
   const save = async () => {
+    if (p.mealShares.length && sharesTotal !== 100) {
+      setFormError(t(`The shares per meal add up to ${sharesTotal} %; make that 100 %, or clear them.`, `De verdeling per maaltijd komt uit op ${sharesTotal} %; maak daar 100 % van, of wis hem.`));
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
@@ -249,6 +287,63 @@ export default function ProfilePage() {
         {p.proteinGPerKg !== null && (
           <NumberField label={t('Protein per kg body weight', 'Eiwit per kg lichaamsgewicht')} suffix="g" value={p.proteinGPerKg} onChange={(v) => set('proteinGPerKg', v ?? 1.8)} />
         )}
+      </section>
+
+      <section className="section stack" aria-label={t('Over the week', 'Over de week')}>
+        <h2>{t('Over the week', 'Over de week')}</h2>
+        <div className="field">
+          <span>{t('Higher days', 'Hogere dagen')}</span>
+          <div className="chips wrap">
+            {WEEKDAYS().map((label, i) => (
+              <button key={i} type="button" aria-pressed={p.shiftDays.includes(i + 1)} disabled={!p.shiftDays.includes(i + 1) && p.shiftDays.length >= 6} onClick={() => toggleShiftDay(i + 1)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {p.shiftDays.length > 0 && (
+          <div className="field">
+            <span>{t('Extra on those days', 'Extra op die dagen')}</span>
+            <div className="chips wrap">
+              {SHIFT_KCAL.map((k) => (
+                <button key={k} type="button" aria-pressed={p.shiftKcal === k} onClick={() => set('shiftKcal', k)}>
+                  +{k} kcal
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <p className="faint small" style={{ margin: 0 }}>
+          {t(
+            'Eat more on the days you pick, such as the weekend. The other days get a bit less, so your week adds up to the same and your pace doesn’t change. “How your target is built” shows the numbers.',
+            'Eet meer op de dagen die je kiest, zoals het weekend. De andere dagen krijgen iets minder, zodat je week hetzelfde uitkomt en je tempo niet verandert. “Hoe je doel is opgebouwd” toont de getallen.',
+          )}
+        </p>
+      </section>
+
+      <section className="section stack" aria-label={t('Per meal', 'Per maaltijd')}>
+        <div className="spread">
+          <h2>{t('Per meal', 'Per maaltijd')}</h2>
+          {p.mealShares.length > 0 ? (
+            <button type="button" className="link-btn" onClick={() => set('mealShares', [])}>
+              {t('Clear', 'Wissen')}
+            </button>
+          ) : (
+            <button type="button" className="link-btn" onClick={suggestShares}>
+              {t('Use a usual split', 'Gebruikelijke verdeling')}
+            </button>
+          )}
+        </div>
+        <div className="grid-2">
+          {(meals.data ?? []).map((m) => (
+            <NumberField key={m.id} label={m.name} suffix="%" digits={0} value={shareOf(m.id)} onChange={(v) => setShare(m.id, v)} />
+          ))}
+        </div>
+        <p className={`small ${p.mealShares.length && sharesTotal !== 100 ? 'error' : 'faint'}`} style={{ margin: 0 }}>
+          {p.mealShares.length
+            ? t(`Total ${sharesTotal} % (has to be 100 %). The diary then shows a target per meal.`, `Totaal ${sharesTotal} % (moet 100 % zijn). Het dagboek toont dan een doel per maaltijd.`)
+            : t('Optional: split your day’s target over the meals, and the diary shows a target per meal.', 'Optioneel: verdeel je dagdoel over de maaltijden, dan toont het dagboek een doel per maaltijd.')}
+        </p>
       </section>
 
       <section className="section stack">

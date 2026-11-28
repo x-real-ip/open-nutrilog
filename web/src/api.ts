@@ -10,6 +10,7 @@ import type {
   DiaryEntry,
   EntryInput,
   FastingState,
+  LabelReading,
   LinkedStrength,
   MealProposal,
   PhaseSuggestion,
@@ -28,6 +29,7 @@ import type {
   SavedMeal,
   SourcesInfo,
   TargetResponse,
+  WeekReport,
 } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { deletePending, getPending, pendingAll, putPending, type PendingOp } from './offlineStore.ts';
@@ -95,6 +97,8 @@ export const api = {
   updateSavedMeal: (id: number, name: string, itemIds?: number[]) => request<{ savedMeal: SavedMeal }>('PUT', `/api/saved-meals/${id}`, { name, itemIds }),
   deleteSavedMeal: (id: number) => request<{ ok: true }>('DELETE', `/api/saved-meals/${id}`),
 
+  readLabel: (image: string) => request<{ label: LabelReading }>('POST', '/api/ai/label', { image }),
+
   target: (day: string) => request<TargetResponse>('GET', `/api/targets/${day}`),
   setMark: (day: string, mark: Partial<DayMark>) => request<TargetResponse>('PUT', `/api/days/${day}/mark`, mark),
   bodyWeights: () => request<{ entries: BodyWeightEntry[] }>('GET', '/api/body-weights'),
@@ -106,6 +110,7 @@ export const api = {
   changeFast: (change: { goalHours?: number; startedAt?: string }) => request<FastingState>('PUT', '/api/fasting/current', change),
   endFast: (endedAt?: string) => request<FastingState>('POST', '/api/fasting/end', { endedAt }),
   deleteFast: (id: number) => request<FastingState>('DELETE', `/api/fasting/${id}`),
+  weekReport: (day?: string) => request<WeekReport>('GET', `/api/week-report${day ? `?day=${day}` : ''}`),
 
   aiSettings: () => request<AiSettingsView>('GET', '/api/settings/ai'),
   saveAiSettings: (update: AiSettingsUpdate) => request<AiSettingsView>('PUT', '/api/settings/ai', update),
