@@ -174,6 +174,78 @@ test('copy: a meal to another meal, a whole day to another day', async () => {
   assert.equal(empty.status, 400);
 });
 
+test('copy: selected entries to several days, into their own meal or another one', async () => {
+  const oats = await product('Oats', { per100: per100(370, 13, 60, 7) });
+  const a = await log(oats.id, { amount: 60, mealId: 1 });
+  await log(oats.id, { amount: 40, mealId: 4 });
+  const b = await log(oats.id, { amount: 20, mealId: 4 });
+  const days = ['2026-11-30', '2026-11-28', '2026-11-29', '2026-11-28'];
+
+  const r = (await call('POST', '/api/diary/copy', { from: DAY, days, entryIds: [a.id, b.id] })).body;
+  assert.equal(r.copied, 6, 'two entries, three distinct days');
+  assert.equal(r.day, '2026-11-28', 'answers with the first day');
+  for (const d of ['2026-11-28', '2026-11-29', '2026-11-30']) {
+    const got = (await call('GET', `/api/diary/${d}`)).body.entries;
+    assert.deepEqual(
+      got.map((e: any) => [e.mealId, e.amount, e.nutrients.kcal]),
+      [
+        [1, 60, 222],
+        [4, 20, 74],
+      ],
+    );
+    assert.ok(!got.some((e: any) => e.id === a.id || e.id === b.id), 'new ids');
+  }
+
+  // A whole meal into another meal on a later day.
+  await call('POST', '/api/diary/copy', { from: DAY, days: ['2026-12-01'], mealId: 4, toMealId: 3 });
+  assert.deepEqual(
+    (await call('GET', '/api/diary/2026-12-01')).body.entries.map((e: any) => [e.mealId, e.amount]),
+    [
+      [3, 40],
+      [3, 20],
+    ],
+  );
+
+  // Bad input.
+  assert.equal((await call('POST', '/api/diary/copy', { from: DAY })).status, 400, 'no target day');
+  assert.equal((await call('POST', '/api/diary/copy', { from: DAY, days: ['2026-12-02'], toMealId: 99 })).status, 400, 'unknown meal');
+  assert.equal((await call('POST', '/api/diary/copy', { from: DAY, days: ['2026-12-02'], entryIds: [crypto.randomUUID()] })).status, 400, 'nothing to copy');
+  const many = Array.from({ length: 63 }, (_, i) => `2027-01-${String((i % 28) + 1).padStart(2, '0')}`);
+  assert.equal((await call('POST', '/api/diary/copy', { from: DAY, days: many })).status, 400, 'at most 62 days');
+});
+
+test('move: entries to another meal and day, values unchanged even after the product changed', async () => {
+  const oats = await product('Oats', { per100: per100(370, 13, 60, 7) });
+  const a = await log(oats.id, { amount: 60, mealId: 1 });
+  const b = await log(oats.id, { amount: 40, mealId: 1 });
+  const c = await log(oats.id, { amount: 10, mealId: 2 });
+  await call('PUT', `/api/products/${oats.id}`, { nameEn: 'Oats', nameNl: '', per100: per100(500, 13, 60, 7) });
+
+  assert.deepEqual((await call('POST', '/api/diary/move', { entryIds: [a.id, c.id], mealId: 4 })).body, { moved: 2 });
+  let entries = (await call('GET', `/api/diary/${DAY}`)).body.entries;
+  assert.deepEqual(
+    entries.map((e: any) => [e.id, e.mealId, e.nutrients.kcal]),
+    [
+      [a.id, 4, 222],
+      [b.id, 1, 148],
+      [c.id, 4, 37],
+    ],
+  );
+
+  await call('POST', '/api/diary/move', { entryIds: [b.id], day: '2026-11-26', mealId: 3 });
+  entries = (await call('GET', '/api/diary/2026-11-26')).body.entries;
+  assert.deepEqual(
+    entries.map((e: any) => [e.id, e.mealId, e.nutrients.kcal]),
+    [[b.id, 3, 148]],
+  );
+  assert.equal((await call('GET', `/api/diary/${DAY}`)).body.entries.length, 2);
+
+  assert.equal((await call('POST', '/api/diary/move', { entryIds: [a.id] })).status, 400, 'nowhere to go');
+  assert.equal((await call('POST', '/api/diary/move', { entryIds: [a.id], mealId: 99 })).status, 400, 'unknown meal');
+  assert.equal((await call('POST', '/api/diary/move', { entryIds: [crypto.randomUUID()], mealId: 2 })).status, 400, 'nothing to move');
+  assert.equal((await call('POST', '/api/diary/move', { entryIds: ['nope'], mealId: 2 })).status, 400);
+});
+
 test('search: prefixes and typos, own and recently eaten first, hidden left out', async () => {
   const offId = (await call('GET', `/api/products/barcode/${yoghurt.code}`)).body.product.id;
   const own = await product('Greek yoghurt');

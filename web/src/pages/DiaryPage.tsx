@@ -3,11 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { DiaryEntry, Meal, Product } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { useInfo } from '../App.tsx';
-import { api, ApiError, onQueueChange, pendingCount, withPending } from '../api.ts';
+import { api, ApiError, onQueueChange, pendingCount, removeEntry, withPending } from '../api.ts';
 import { AddFoodSheet } from '../components/AddFoodSheet.tsx';
 import { AmountSheet } from '../components/AmountSheet.tsx';
 import { BarcodeScanner } from '../components/BarcodeScanner.tsx';
-import { IconBack, IconChevron, IconPlus } from '../components/Icons.tsx';
+import { BulkSheet, type BulkScope } from '../components/BulkSheet.tsx';
+import { IconBack, IconCheck, IconChevron, IconPlus } from '../components/Icons.tsx';
 import { MealAiSheet } from '../components/MealAiSheet.tsx';
 import { MealSheet } from '../components/MealSheet.tsx';
 import { ProductForm } from '../components/ProductForm.tsx';
@@ -37,6 +38,7 @@ type SheetState =
   | { kind: 'scan'; mealId: number }
   | { kind: 'meal'; meal: Meal }
   | { kind: 'ai'; mode: 'text' | 'photo'; mealId: number }
+  | { kind: 'bulk'; mode: 'move' | 'copy'; scope: BulkScope; count: number }
   | null;
 
 /** One day of the diary. "Today" comes from the server, so it follows the profile's time zone. */
@@ -49,6 +51,10 @@ export default function DiaryPage() {
   const marks = useLoad(() => api.target(day).then((r) => r.mark), [day]);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [, setTick] = useState(0);
+  /** The entries picked for a bulk action; null when not picking. */
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+
+  useEffect(() => setSelected(null), [day]);
 
   // Queued changes show right away (the overlay); after each send, reload what the server has.
   useEffect(
@@ -68,6 +74,26 @@ export default function DiaryPage() {
   const meals = view.meals.filter((m) => !m.hidden || view.entries.some((e) => e.mealId === m.id));
   const mealName = (id: number) => view.meals.find((m) => m.id === id)?.name ?? '';
   const queued = pendingCount();
+
+  const toggle = (ids: string[], on: boolean) =>
+    setSelected((cur) => {
+      const next = new Set(cur ?? []);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  const picked = selected ? view.entries.filter((e) => selected.has(e.id)) : [];
+  const n = picked.length;
+  const items = (k: number) => (k === 1 ? 'item' : 'items');
+
+  const deletePicked = async () => {
+    if (!confirm(t(`Delete ${n} ${items(n)}?`, `${n} ${items(n)} verwijderen?`))) return;
+    for (const e of picked) await removeEntry(e.id, day);
+    setSelected(null);
+    toast(t(`Deleted ${n} ${items(n)}`, `${n} ${items(n)} verwijderd`));
+  };
 
   const openEntry = async (e: DiaryEntry) => {
     if (e.unit === 'kcal') return setSheet({ kind: 'quick', mealId: e.mealId, entry: e });
@@ -132,7 +158,14 @@ export default function DiaryPage() {
       <section className="panel day-total" aria-label={t('Total of the day', 'Totaal van de dag')}>
         <div className="spread">
           <span className="value num">{kcal(view.totals.kcal)}</span>
-          {queued > 0 && <span className="tag warn">{t(`${queued} not synced yet`, `${queued} nog niet gesynchroniseerd`)}</span>}
+          <span className="row" style={{ gap: 12 }}>
+            {queued > 0 && <span className="tag warn">{t(`${queued} not synced yet`, `${queued} nog niet gesynchroniseerd`)}</span>}
+            {view.entries.length > 0 && (
+              <button className="link-btn" onClick={() => setSelected(selected ? null : new Set())}>
+                {selected ? t('Done', 'Klaar') : t('Select', 'Selecteren')}
+              </button>
+            )}
+          </span>
         </div>
         <div className="muted small">{macroLine(view.totals)}</div>
       </section>
@@ -140,18 +173,35 @@ export default function DiaryPage() {
       {meals.map((meal) => {
         const entries = view.entries.filter((e) => e.mealId === meal.id);
         const total = sumNutrients(entries.map((e) => e.nutrients));
+        const allPicked = entries.length > 0 && entries.every((e) => selected?.has(e.id));
         return (
           <section key={meal.id} className="section meal" aria-label={meal.name}>
             <div className="spread meal-head">
               <button className="link-btn meal-name" onClick={() => setSheet({ kind: 'meal', meal })} aria-label={t(`${meal.name}: options`, `${meal.name}: opties`)}>
                 <h2>{meal.name}</h2>
               </button>
-              <span className="muted num">{entries.length > 0 ? kcal(total.kcal) : ''}</span>
+              {selected && entries.length > 0 ? (
+                <button
+                  className="link-btn"
+                  onClick={() => toggle(entries.map((e) => e.id), !allPicked)}
+                  aria-label={allPicked ? t(`${meal.name}: select none`, `${meal.name}: niets selecteren`) : t(`${meal.name}: select all`, `${meal.name}: alles selecteren`)}
+                >
+                  {allPicked ? t('Select none', 'Niets selecteren') : t('Select all', 'Alles selecteren')}
+                </button>
+              ) : (
+                <span className="muted num">{entries.length > 0 ? kcal(total.kcal) : ''}</span>
+              )}
             </div>
             {entries.length > 0 && (
               <div className="list">
                 {entries.map((e) => (
-                  <button key={e.id} className={`list-row entry${view.pendingIds.has(e.id) ? ' pending' : ''}`} onClick={() => void openEntry(e)}>
+                  <button
+                    key={e.id}
+                    className={`list-row entry${view.pendingIds.has(e.id) ? ' pending' : ''}`}
+                    aria-pressed={selected ? selected.has(e.id) : undefined}
+                    onClick={() => (selected ? toggle([e.id], !selected.has(e.id)) : void openEntry(e))}
+                  >
+                    {selected && <span className="pick">{selected.has(e.id) && <IconCheck size={16} />}</span>}
                     <div className="grow">
                       <div className="title">{e.name}</div>
                       <div className="sub">
@@ -164,14 +214,35 @@ export default function DiaryPage() {
                 ))}
               </div>
             )}
-            <button className="btn add-food" onClick={() => setSheet({ kind: 'add', mealId: meal.id })}>
-              <IconPlus size={18} /> {t('Add food', 'Eten toevoegen')}
-            </button>
+            {!selected && (
+              <button className="btn add-food" onClick={() => setSheet({ kind: 'add', mealId: meal.id })}>
+                <IconPlus size={18} /> {t('Add food', 'Eten toevoegen')}
+              </button>
+            )}
           </section>
         );
       })}
 
-      <section className="section stack">
+      {selected && (
+        <div className="select-bar" role="toolbar" aria-label={t('Selected items', 'Geselecteerde items')}>
+          <div className="select-bar-inner">
+            <span className="grow small">
+              <strong className="num">{n}</strong> <span className="picked-word">{t('selected', 'geselecteerd')}</span>
+            </span>
+            <button className="btn small-btn" disabled={!n} onClick={() => setSheet({ kind: 'bulk', mode: 'move', scope: { entryIds: picked.map((e) => e.id) }, count: n })}>
+              {t('Move', 'Verplaatsen')}
+            </button>
+            <button className="btn small-btn" disabled={!n} onClick={() => setSheet({ kind: 'bulk', mode: 'copy', scope: { entryIds: picked.map((e) => e.id) }, count: n })}>
+              {t('Copy', 'Kopiëren')}
+            </button>
+            <button className="btn small-btn danger" disabled={!n} onClick={() => void deletePicked()}>
+              {t('Delete', 'Verwijderen')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <section className="section stack" style={selected ? { display: 'none' } : undefined}>
         {view.entries.length === 0 && (
           <button className="btn block" onClick={() => void copyYesterday()}>
             {t('Copy the day before', 'Vorige dag kopiëren')}
@@ -272,6 +343,24 @@ export default function DiaryPage() {
         hasEntries={sheet?.kind === 'meal' ? view.entries.some((e) => e.mealId === sheet.meal.id) : false}
         onClose={() => setSheet(null)}
         onChanged={() => void reload()}
+        onCopyToDays={() =>
+          sheet?.kind === 'meal' &&
+          setSheet({ kind: 'bulk', mode: 'copy', scope: { mealId: sheet.meal.id }, count: view.entries.filter((e) => e.mealId === sheet.meal.id).length })
+        }
+      />
+      <BulkSheet
+        open={sheet?.kind === 'bulk'}
+        mode={sheet?.kind === 'bulk' ? sheet.mode : 'copy'}
+        scope={sheet?.kind === 'bulk' ? sheet.scope : null}
+        count={sheet?.kind === 'bulk' ? sheet.count : 0}
+        day={day}
+        today={info.today}
+        meals={view.meals}
+        onClose={() => setSheet(null)}
+        onDone={() => {
+          setSelected(null);
+          void reload();
+        }}
       />
     </main>
   );
