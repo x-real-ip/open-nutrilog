@@ -6,7 +6,8 @@ import { all, getPool, one, run, type Queryable } from '../db.ts';
 import { langOf, pick, type Lang } from '../i18n.ts';
 import { addDays, DAY_PATTERN, daysBetween, today } from './days.ts';
 import { getProfile, timeZoneOf } from './profile.ts';
-import { adaptiveTdee, bmr, dailyTarget, ewma, workoutEnergy, type AdaptiveResult, type Body, type Target, type TargetSettings, type Workout } from './targets.ts';
+import { listMeals } from './meals.ts';
+import { adaptiveTdee, bmr, dailyTarget, ewma, mealTargets, workoutEnergy, type AdaptiveResult, type Body, type Target, type TargetSettings, type Workout } from './targets.ts';
 
 /** Monday of the week a day is in. */
 export function weekStart(day: string): string {
@@ -23,6 +24,8 @@ export function settingsOf(p: Profile): TargetSettings {
     carbCycling: p.carbCycling,
     metStrength: p.metStrength,
     workoutEnergyShare: p.workoutEnergyShare,
+    shiftDays: p.shiftDays,
+    shiftKcal: p.shiftKcal,
   };
 }
 
@@ -183,7 +186,7 @@ export async function targetFor(day: string, changes: Partial<Pick<Profile, 'pha
   const mark = (await getMarks(day, day)).get(day) ?? { training: null, incomplete: false };
   const ws = await weighIns();
   const missing = missingFields(p, ws.length > 0);
-  if (!p || missing.length) return { day, target: null, missing, mark, adaptive: null };
+  if (!p || missing.length) return { day, target: null, missing, mark, adaptive: null, meals: [] };
 
   const kg = weightOn(day, ws, p.weightKg)!;
   const now = today(timeZoneOf(p));
@@ -195,8 +198,10 @@ export async function targetFor(day: string, changes: Partial<Pick<Profile, 'pha
     base = row?.adaptive_kcal != null ? { kcal: row.base_kcal, source: 'adaptive' } : null;
   }
   const workout = (await workoutsBetween(p, day, day, new Map([[day, mark]]))).get(day) ?? null;
-  const target = dailyTarget(bodyOf(p, kg), settingsOf(p), { base, workout });
-  return { day, target: targetView(target, workout, lang), missing, mark, adaptive: adaptiveView(maintenance, lang) };
+  const target = dailyTarget(bodyOf(p, kg), settingsOf(p), { base, workout, day });
+  const shown = (await listMeals(lang)).filter((m) => !m.hidden).map((m) => m.id);
+  const meals = mealTargets(target, p.mealShares, shown);
+  return { day, target: targetView(target, workout, lang), missing, mark, adaptive: adaptiveView(maintenance, lang), meals };
 }
 
 // ---------- Days and progress ----------
@@ -255,7 +260,7 @@ export async function daySummaries(from: string, to: string): Promise<{ days: Da
     if (canTarget && kg) {
       const h = byWeek.get(weekStart(d)) ?? byWeek.get(weekStart(now));
       const base = h?.adaptive_kcal != null ? { kcal: h.base_kcal, source: 'adaptive' as const } : null;
-      target = dailyTarget(bodyOf(p!, kg), settingsOf(p!), { base, workout: w });
+      target = dailyTarget(bodyOf(p!, kg), settingsOf(p!), { base, workout: w, day: d });
     }
     days.push({
       date: d,

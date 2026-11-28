@@ -5,6 +5,9 @@ import {
   adaptiveTdee,
   bmr,
   dailyTarget,
+  dayShift,
+  isoWeekday,
+  mealTargets,
   effectiveRate,
   ewma,
   phaseAdjustment,
@@ -125,6 +128,64 @@ function series(days: number, kcal: number, startKg: number, kgPerDay: number, o
     .map((i) => ({ date: date(i), kg: startKg + kgPerDay * i }));
   return { intake, weights };
 }
+
+test('higher days: Saturday and Sunday +300, the weekdays give it back, the week adds up to the same', () => {
+  const shifted = { ...cut, shiftDays: [6, 7], shiftKcal: 300 };
+  assert.equal(isoWeekday('2026-11-23'), 1, 'a Monday');
+  assert.equal(isoWeekday('2026-11-29'), 7, 'a Sunday');
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((d) => dayShift(shifted, d)), [-120, -120, -120, -120, -120, 300, 300]);
+
+  // A week of targets: the same total as without shifting.
+  const week = ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29'];
+  const total = (s: typeof cut) => week.reduce((sum, day) => sum + dailyTarget(man, s, { day }).kcal, 0);
+  assert.equal(total(shifted), total(cut));
+  const sat = dailyTarget(man, shifted, { day: '2026-11-28' });
+  assert.equal(sat.kcal, 2282);
+  assert.equal(sat.proteinG, 160, 'protein stays');
+  assert.match(sat.steps.find((x) => x.id === 'shift')!.text.en, /higher day \(Sat, Sun\): 300 kcal more/);
+  const mon = dailyTarget(man, shifted, { day: '2026-11-23' });
+  assert.equal(mon.kcal, 1862);
+  assert.match(mon.steps.find((x) => x.id === 'shift')!.text.nl, /krijgt deze dag 120 kcal minder/);
+  // Training comes on top, as always.
+  assert.equal(dailyTarget(man, shifted, { day: '2026-11-23', workout: { minutes: 45, source: 'finished' } }).kcal, 1862 + 240);
+
+  // Off without days, with all seven, with 0 kcal, or without a date; the spec example is untouched.
+  for (const s of [{ ...cut, shiftDays: [], shiftKcal: 300 }, { ...cut, shiftDays: [1, 2, 3, 4, 5, 6, 7], shiftKcal: 300 }, { ...cut, shiftDays: [6], shiftKcal: 0 }]) {
+    assert.equal(dailyTarget(man, s, { day: '2026-11-28' }).kcal, 1982);
+  }
+  assert.equal(dailyTarget(man, shifted).kcal, 1982);
+  assert.equal(dayShift({ shiftDays: [6], shiftKcal: 5000 }, 6), 600, 'capped');
+});
+
+test('higher days: the floor still holds on the lower days', () => {
+  const small: Body = { sex: 'female', age: 30, heightCm: 160, weightKg: 55 };
+  const t = dailyTarget(small, { ...cut, neat: 1.2, ratePctPerWeek: 1, shiftDays: [6, 7], shiftKcal: 500 }, { day: '2026-11-23' });
+  assert.equal(t.floorHit, true);
+  assert.equal(t.kcal, t.bmr);
+});
+
+test('meal targets: the day split by your shares, scaled over the meals that are there', () => {
+  const day = { kcal: 2000, proteinG: 160 };
+  const shares = [
+    { mealId: 1, pct: 25 },
+    { mealId: 2, pct: 35 },
+    { mealId: 3, pct: 30 },
+    { mealId: 4, pct: 10 },
+  ];
+  assert.deepEqual(mealTargets(day, shares, [1, 2, 3, 4]), [
+    { mealId: 1, kcal: 500, proteinG: 40 },
+    { mealId: 2, kcal: 700, proteinG: 56 },
+    { mealId: 3, kcal: 600, proteinG: 48 },
+    { mealId: 4, kcal: 200, proteinG: 16 },
+  ]);
+  // Snacks hidden: its 10 % is spread over the others.
+  assert.deepEqual(
+    mealTargets(day, shares, [1, 2, 3]).map((m) => m.kcal),
+    [556, 778, 667],
+  );
+  assert.deepEqual(mealTargets(day, [], [1, 2]), []);
+  assert.deepEqual(mealTargets(day, [{ mealId: 9, pct: 100 }], [1, 2]), []);
+});
 
 test('EWMA: alpha 0.1 per weigh-in', () => {
   assert.deepEqual(ewma([80, 81, 79]).map((v) => Math.round(v * 1000) / 1000), [80, 80.1, 79.99]);
