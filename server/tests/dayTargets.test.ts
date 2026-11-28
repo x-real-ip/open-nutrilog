@@ -40,11 +40,11 @@ beforeEach(async () => {
   today = (await call('GET', '/api/info')).body.today;
 });
 
-async function eat(day: string, kcal: number) {
+async function eat(day: string, kcal: number, protein = 100, name = 'x') {
   await run(
     `INSERT INTO diary_entries (id, day, meal_id, name, amount, unit, quantity, kcal, protein, carbs, fat, created_at, updated_at)
-     VALUES ($1, $2, 1, 'x', $3, 'kcal', 0, $3, 100, 250, 80, now(), now())`,
-    [crypto.randomUUID(), day, kcal],
+     VALUES ($1, $2, 1, $4, $3, 'kcal', 0, $3, $5, 250, 80, now(), now())`,
+    [crypto.randomUUID(), day, kcal, name, protein],
   );
 }
 
@@ -168,6 +168,47 @@ test('progress: intake against target per day and week, weight trend, averages',
   assert.ok(p.weeks.some((w: any) => w.avgKcal === 2000));
   assert.ok(p.tdee.some((t: any) => t.weekStart === weekStart(today) && t.baseKcal === 2422));
   assert.equal((await call('GET', '/api/progress?days=2')).status, 400);
+});
+
+test('week report: last week by default; complete days only; protein days; trend; top foods', async () => {
+  await call('PUT', '/api/profile', spec);
+  const wk = weekStart(addDays(today, -7));
+  const weigh = (d: string, kg: number) => run('INSERT INTO body_weights (measured_on, weight_kg, created_at) VALUES ($1, $2, now())', [d, kg]);
+  await weigh(addDays(wk, -3), 80);
+  await weigh(addDays(wk, 6), 78);
+  await eat(wk, 1800);
+  await eat(addDays(wk, 1), 1500);
+  await eat(addDays(wk, 1), 300, 0, '{"en":"Cake","nl":"Taart"}');
+  await eat(addDays(wk, 2), 2100);
+  await call('PUT', `/api/days/${addDays(wk, 2)}/mark`, { incomplete: true });
+  await eat(addDays(wk, 3), 1900, 170);
+
+  const r = (await call('GET', '/api/week-report')).body;
+  assert.equal(r.weekStart, wk);
+  assert.equal(r.weekEnd, addDays(wk, 6));
+  assert.equal(r.previous, addDays(wk, -7));
+  assert.equal(r.next, weekStart(today));
+  assert.equal(r.days.length, 7);
+  assert.deepEqual([r.daysSoFar, r.loggedDays, r.completeDays], [7, 4, 3], 'the incomplete day is logged but not complete');
+  assert.equal(r.avgKcal, 1833);
+  assert.equal(r.avgTargetKcal, 1982);
+  assert.equal(r.balanceKcal, 1800 - 1982 + (1800 - 1982) + (1900 - 1982));
+  assert.deepEqual([r.proteinHitDays, r.proteinTargetDays], [1, 3], '170 g reaches 95 % of 160 g; 100 g does not');
+  assert.equal(r.avgProteinG, 123);
+  assert.equal(r.trainingDays, 0);
+  assert.deepEqual([r.trendStartKg, r.trendEndKg, r.trendChangeKg, r.weighIns], [80, 79.8, -0.2, 1]);
+  assert.deepEqual(r.topFoods, [
+    { name: 'x', kcal: 7300, times: 4 },
+    { name: 'Cake', kcal: 300, times: 1 },
+  ]);
+
+  // This week has no next; a week still to come gives this week; a bad day is refused.
+  const now = (await call('GET', `/api/week-report?day=${today}`)).body;
+  assert.equal(now.weekStart, weekStart(today));
+  assert.equal(now.next, null);
+  assert.equal(now.days.filter((d: any) => d.date <= today).length, now.daysSoFar);
+  assert.equal((await call('GET', `/api/week-report?day=${addDays(today, 30)}`)).body.weekStart, weekStart(today));
+  assert.equal((await call('GET', '/api/week-report?day=yesterday')).status, 400);
 });
 
 test('marks, weights and the maintenance history survive export and import', async () => {

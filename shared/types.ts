@@ -263,6 +263,39 @@ export interface ProgressResponse {
   tdee: { weekStart: string; baseKcal: number; formulaKcal: number; adaptiveKcal: number | null }[];
 }
 
+/** One week (Monday to Sunday) looked back on. Averages count only complete logged days up to today. */
+export interface WeekReport {
+  weekStart: string;
+  weekEnd: string;
+  /** The week before; the week after, unless that is still to come. */
+  previous: string;
+  next: string | null;
+  days: ProgressDay[];
+  /** Days with something logged (also incomplete ones), and of those the complete ones. */
+  loggedDays: number;
+  completeDays: number;
+  /** Days of the week up to today. */
+  daysSoFar: number;
+  avgKcal: number | null;
+  avgTargetKcal: number | null;
+  /** Eaten minus target, added up over the complete days: below zero is under target. */
+  balanceKcal: number | null;
+  avgProteinG: number | null;
+  avgCarbsG: number | null;
+  avgFatG: number | null;
+  /** Complete days that reached at least 95 % of the protein target, out of the complete days with a target. */
+  proteinHitDays: number;
+  proteinTargetDays: number;
+  trainingDays: number;
+  /** Trend weight at the start and end of the week, and the change. */
+  trendStartKg: number | null;
+  trendEndKg: number | null;
+  trendChangeKg: number | null;
+  weighIns: number;
+  /** What gave the most energy this week. */
+  topFoods: { name: string; kcal: number; times: number }[];
+}
+
 // ---------- Open Strength ----------
 
 /** The link with Open Strength, for the PWA (GET /api/linked/strength). */

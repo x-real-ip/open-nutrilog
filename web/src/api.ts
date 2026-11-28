@@ -26,6 +26,7 @@ import type {
   RecipeInput,
   SourcesInfo,
   TargetResponse,
+  WeekReport,
 } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { deletePending, getPending, pendingAll, putPending, type PendingOp } from './offlineStore.ts';
@@ -94,6 +95,7 @@ export const api = {
   logBodyWeight: (weightKg: number, date?: string) => request<{ entries: BodyWeightEntry[] }>('POST', '/api/body-weights', { weightKg, date }),
   deleteBodyWeight: (id: number) => request<{ entries: BodyWeightEntry[] }>('DELETE', `/api/body-weights/${id}`),
   progress: (days = 56) => request<ProgressResponse>('GET', `/api/progress?days=${days}`),
+  weekReport: (day?: string) => request<WeekReport>('GET', `/api/week-report${day ? `?day=${day}` : ''}`),
 
   aiSettings: () => request<AiSettingsView>('GET', '/api/settings/ai'),
   saveAiSettings: (update: AiSettingsUpdate) => request<AiSettingsView>('PUT', '/api/settings/ai', update),
