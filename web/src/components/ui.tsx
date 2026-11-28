@@ -1,13 +1,13 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { versionLabel } from '../format.ts';
 import { t } from '../i18n.ts';
-import { IconCoach, IconDiary, IconProfile, IconProgress, IconToday } from './Icons.tsx';
+import { IconBack, IconCoach, IconDiary, IconProfile, IconProgress, IconToday } from './Icons.tsx';
 
 /** Bottom tab bar on phones; a sidebar with the logo and version on wide screens (see styles.css). */
 export function BottomNav({ version }: { version: string }) {
   const items = [
-    { to: '/', label: t('Today', 'Vandaag'), icon: <IconToday /> },
+    { to: '/today', label: t('Today', 'Vandaag'), icon: <IconToday /> },
     { to: '/diary', label: t('Diary', 'Dagboek'), icon: <IconDiary /> },
     { to: '/progress', label: t('Progress', 'Voortgang'), icon: <IconProgress /> },
     { to: '/coach', label: t('Coach', 'Coach'), icon: <IconCoach /> },
@@ -19,12 +19,36 @@ export function BottomNav({ version }: { version: string }) {
         OPEN NUTRILOG <span className="version">{versionLabel(version)}</span>
       </div>
       {items.map((i) => (
-        <NavLink key={i.to} to={i.to} end={i.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
+        <NavLink key={i.to} to={i.to} className={({ isActive }) => (isActive ? 'active' : '')}>
           {i.icon}
           {i.label}
         </NavLink>
       ))}
     </nav>
+  );
+}
+
+/**
+ * Back to where you came from: one step back in the app's history, or `fallback` when the page was opened directly
+ * (a link, a notification, a reload), so it never leaves the app.
+ */
+export function BackButton({ fallback, label }: { fallback: string; label?: string }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (
+    <button type="button" className="icon-btn" aria-label={label ?? t('Back', 'Terug')} onClick={() => (location.key !== 'default' ? navigate(-1) : navigate(fallback, { replace: true }))}>
+      <IconBack />
+    </button>
+  );
+}
+
+/** The head of a page you reach from another one: a back button and the title. */
+export function SubpageHead({ title, fallback }: { title: string; fallback: string }) {
+  return (
+    <div className="page-head" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+      <BackButton fallback={fallback} />
+      <h1>{title}</h1>
+    </div>
   );
 }
 
@@ -34,6 +58,54 @@ function keyboardInset(): number {
   return vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
 }
 
+// The phone's back button (or gesture) closes an open sheet instead of leaving the page. Opening a sheet adds one
+// history entry (same URL, marked in its state); back pops it and closes the sheet. A sheet closed by a tap steps back
+// over that entry itself, so the next back leaves the page as expected. Going from one sheet straight to another
+// (search → amount) keeps the one entry.
+const sheetStack: { close: () => void; byBack: boolean }[] = [];
+let ignorePops = 0;
+let listening = false;
+const SHEET_MARK = 'nutrilogSheet';
+const marked = () => Boolean((window.history.state as Record<string, unknown> | null)?.[SHEET_MARK]);
+
+function onPopState() {
+  if (ignorePops > 0) {
+    ignorePops--;
+    return;
+  }
+  const top = sheetStack[sheetStack.length - 1];
+  if (top) {
+    top.byBack = true;
+    top.close();
+  }
+}
+
+function useBackCloses(open: boolean, onClose: () => void) {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    if (!listening) {
+      window.addEventListener('popstate', onPopState);
+      listening = true;
+    }
+    const entry = { close: () => close.current(), byBack: false };
+    sheetStack.push(entry);
+    if (!marked()) window.history.pushState({ ...(window.history.state ?? {}), [SHEET_MARK]: true }, '');
+    return () => {
+      sheetStack.splice(sheetStack.indexOf(entry), 1);
+      if (entry.byBack) return;
+      // Closed by a tap: once no other sheet took over, go back over the entry this sheet added.
+      window.setTimeout(() => {
+        if (sheetStack.length === 0 && marked()) {
+          ignorePops++;
+          window.history.back();
+        }
+      }, 0);
+    };
+  }, [open]);
+}
+
 /**
  * A panel that slides up from the bottom. With the on-screen keyboard open it stays above the keyboard (the viewport
  * resizes, see index.html; Safari gets the room through --kb), keeps the focused field in view, and the page behind
@@ -41,6 +113,7 @@ function keyboardInset(): number {
  */
 export function Sheet({ open, onClose, children, label, tall = false }: { open: boolean; onClose: () => void; children: ReactNode; label: string; tall?: boolean }) {
   const [kb, setKb] = useState(0);
+  useBackCloses(open, onClose);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();

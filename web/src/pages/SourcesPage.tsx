@@ -1,7 +1,5 @@
-import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
-import { IconBack } from '../components/Icons.tsx';
-import { ErrorState, Loading, useLoad } from '../components/ui.tsx';
+import { ErrorState, Loading, SubpageHead, useLoad } from '../components/ui.tsx';
 import { longDate } from '../format.ts';
 import { t } from '../i18n.ts';
 
@@ -13,12 +11,7 @@ export default function SourcesPage() {
 
   return (
     <main className="page">
-      <div className="page-head" style={{ justifyContent: 'flex-start' }}>
-        <Link className="icon-btn" to="/profile" aria-label={t('Back', 'Terug')}>
-          <IconBack />
-        </Link>
-        <h1>{t('Sources', 'Bronnen')}</h1>
-      </div>
+      <SubpageHead title={t('Sources', 'Bronnen')} fallback="/profile" />
 
       <section className="stack" aria-label="Open Food Facts">
         <h2>Open Food Facts</h2>

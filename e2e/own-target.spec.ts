@@ -42,14 +42,14 @@ for (const lang of ['en', 'nl'] as const) {
     const budget = page.getByRole('region', { name: T('Today’s budget', 'Budget van vandaag') });
     if (today === monday(today)) {
       // A Monday has no days before it this week: just your own target.
-      await page.goto('/');
+      await page.goto('/today');
       await expect(budget).toContainText('2100 kcal');
     } else {
       // Yesterday 1000 kcal over: today gets less, and Today says why.
       await request.put(`/api/diary/entries/${crypto.randomUUID()}`, {
         data: { day: addDays(today, -1), mealId: 3, productId: null, amount: 3100, unit: 'kcal', quick: { name: 'Feest', kcal: 3100, protein: 100, carbs: null, fat: null } },
       });
-      await page.goto('/');
+      await page.goto('/today');
       await expect(budget).toContainText(T('Weekly average:', 'Weekgemiddelde:'));
       await expect(budget).toContainText(T('kcal less today. This week you ate 1000 kcal more than your targets so far', 'kcal minder. Deze week at je tot nu toe 1000 kcal meer dan je doelen'));
     }

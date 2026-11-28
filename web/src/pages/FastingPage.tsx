@@ -1,6 +1,6 @@
 import { api } from '../api.ts';
 import { FastingCard } from '../components/FastingCard.tsx';
-import { ErrorState, Loading, useLoad } from '../components/ui.tsx';
+import { ErrorState, Loading, SubpageHead, useLoad } from '../components/ui.tsx';
 import { t } from '../i18n.ts';
 
 /** The fasting timer with its history: change the start or the goal of a running fast, remove an old one. */
@@ -10,9 +10,7 @@ export default function FastingPage() {
   if (error || !data) return <ErrorState message={error ?? ''} onRetry={reload} />;
   return (
     <main className="page">
-      <div className="page-head">
-        <h1>{t('Fasting', 'Vasten')}</h1>
-      </div>
+      <SubpageHead title={t('Fasting', 'Vasten')} fallback="/today" />
       <FastingCard defaultGoal={data.profile?.fastingGoalHours ?? 16} full />
       <p className="faint small">
         {t(

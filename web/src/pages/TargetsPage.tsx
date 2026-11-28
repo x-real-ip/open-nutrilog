@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useInfo } from '../App.tsx';
 import { api } from '../api.ts';
-import { IconBack } from '../components/Icons.tsx';
-import { ErrorState, Loading, useLoad } from '../components/ui.tsx';
+import { ErrorState, Loading, SubpageHead, useLoad } from '../components/ui.tsx';
 import { kcal } from '../format.ts';
 import { t } from '../i18n.ts';
 
@@ -17,12 +16,7 @@ export default function TargetsPage() {
 
   return (
     <main className="page">
-      <div className="page-head" style={{ justifyContent: 'flex-start' }}>
-        <Link className="icon-btn" to="/" aria-label={t('Back', 'Terug')}>
-          <IconBack />
-        </Link>
-        <h1>{t('How your target is built', 'Hoe je doel is opgebouwd')}</h1>
-      </div>
+      <SubpageHead title={t('How your target is built', 'Hoe je doel is opgebouwd')} fallback="/today" />
 
       {!goal ? (
         <section className="panel stack">

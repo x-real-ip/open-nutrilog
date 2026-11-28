@@ -195,9 +195,18 @@ test('own target: replaces maintenance plus the phase; training, higher days and
   assert.match(t.steps.find((x) => x.id === 'own')!.text.en, /Your own target: 2100 kcal a day \(worked out it would be 1982 kcal\)/);
   assert.equal(dailyTarget(man, { ...cut, kcalOverride: 2100 }, { workout: { minutes: 45, source: 'finished' } }).kcal, 2340);
   assert.equal(dailyTarget(man, { ...cut, kcalOverride: 2100, shiftDays: [6, 7], shiftKcal: 300 }, { day: '2026-11-28' }).kcal, 2400);
-  const low = dailyTarget(man, { ...cut, kcalOverride: 1200 });
-  assert.equal(low.kcal, 1730, 'never below the resting energy');
-  assert.equal(low.floorHit, true);
+  // Below the resting energy (1730): your own choice is followed, with a word about it.
+  const low = dailyTarget(man, { ...cut, kcalOverride: 1600 });
+  assert.equal(low.kcal, 1600);
+  assert.equal(low.floorHit, false);
+  assert.match(low.steps.find((x) => x.id === 'own')!.text.en, /below your resting energy \(1730 kcal\)/);
+  // Then lower days and the weekly average can't push below your own target...
+  const lowered = dailyTarget(man, { ...cut, kcalOverride: 1600, shiftDays: [6, 7], shiftKcal: 300 }, { day: '2026-11-23' });
+  assert.equal(lowered.kcal, 1600);
+  assert.equal(lowered.floorHit, true);
+  assert.match(lowered.steps.find((x) => x.id === 'floor')!.text.en, /below your own target/);
+  // ...and with an own target above it, the resting energy stays the floor.
+  assert.equal(dailyTarget(man, { ...cut, kcalOverride: 1800 }, { carry: { balance: 900, daysLeft: 3, perDay: -300, capped: false } }).kcal, 1730);
   assert.equal(dailyTarget(man, { ...cut, kcalOverride: null }).kcal, 1982, 'the spec example without it');
 });
 

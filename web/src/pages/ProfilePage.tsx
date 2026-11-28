@@ -330,6 +330,17 @@ function ProfileForm({ data, reload }: { data: { profile: Profile | null; defaul
             ))}
           </div>
         </div>
+        <div className="field">
+          <span>{t('Open the app on', 'App openen op')}</span>
+          <div className="seg">
+            <button type="button" aria-pressed={p.startPage === 'diary'} onClick={() => set('startPage', 'diary')}>
+              {t('Diary', 'Dagboek')}
+            </button>
+            <button type="button" aria-pressed={p.startPage === 'today'} onClick={() => set('startPage', 'today')}>
+              {t('Today', 'Vandaag')}
+            </button>
+          </div>
+        </div>
       </section>
 
       <section className="section stack">
@@ -441,8 +452,8 @@ function ProfileForm({ data, reload }: { data: { profile: Profile | null; defaul
             />
             <p className="faint small" style={{ margin: 0 }}>
               {t(
-                'Replaces maintenance plus your pace. Training days, higher days and the weekly average still apply, and it never goes below your resting energy. The macros follow it.',
-                'Vervangt onderhoud plus je tempo. Trainingsdagen, hogere dagen en het weekgemiddelde blijven gelden, en het gaat nooit onder je ruststofwisseling. De macro’s volgen het.',
+                'Replaces maintenance plus your pace. Training days, higher days and the weekly average still apply, and the macros follow it. Below your resting energy is allowed, with a note on Today.',
+                'Vervangt onderhoud plus je tempo. Trainingsdagen, hogere dagen en het weekgemiddelde blijven gelden, en de macro’s volgen het. Onder je ruststofwisseling mag, met een melding op Vandaag.',
               )}
             </p>
           </>

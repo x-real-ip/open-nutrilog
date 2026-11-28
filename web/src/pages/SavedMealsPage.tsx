@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { SavedMeal } from '@shared/types.ts';
 import { api } from '../api.ts';
 import { IconClose } from '../components/Icons.tsx';
-import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
+import { ErrorState, Loading, SubpageHead, toast, useLoad } from '../components/ui.tsx';
 import { amountLabel } from '../food.ts';
 import { kcal } from '../format.ts';
 import { t } from '../i18n.ts';
@@ -88,9 +88,7 @@ export default function SavedMealsPage() {
 
   return (
     <main className="page">
-      <div className="page-head">
-        <h1>{t('Saved meals', 'Vaste maaltijden')}</h1>
-      </div>
+      <SubpageHead title={t('Saved meals', 'Vaste maaltijden')} fallback="/profile" />
       {data.length ? (
         <div className="stack">
           {data.map((m) => (

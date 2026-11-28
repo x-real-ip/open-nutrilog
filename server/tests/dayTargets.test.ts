@@ -298,6 +298,11 @@ test('weekly average and an own target through the API; the week report measures
   assert.equal(r.balanceKcal, 600);
   assert.equal(r.avgTargetKcal, 1982);
 
+  // A day in a week still to come starts fresh: the whole week ahead of it.
+  const nextMonday = addDays(weekStart(today), 7);
+  assert.equal((await call('GET', `/api/targets/${nextMonday}`)).body.target.carry.daysLeft, 7);
+  assert.equal((await call('GET', `/api/targets/${addDays(nextMonday, 2)}`)).body.target.carry.daysLeft, 7);
+
   // Off again: no carry.
   await call('PUT', '/api/profile', spec);
   tue = (await call('GET', `/api/targets/${addDays(wk, 1)}`)).body.target;

@@ -35,6 +35,8 @@ export interface Profile {
   trainingMinutes: number;
   /** How much of the workout energy counts: 0, 50 or 100 %. */
   workoutEnergyShare: number;
+  /** The page the app opens on. */
+  startPage: 'diary' | 'today';
   /** Push reminders at a time of day (HH:MM); null is off. Only devices with notifications on get them. */
   reminders: { meals: { mealId: number; time: string }[]; weighIn: string | null; summary: string | null };
   /** Your own rest-day target in kcal (1000–6000); null: worked out. Training, higher days and the weekly average still apply. */
@@ -70,6 +72,8 @@ export interface AppInfo {
   timeZone: string;
   /** Today in that time zone, YYYY-MM-DD. */
   today: string;
+  /** The page the app opens on: the profile's choice, or Today (where setting up starts) without a profile. */
+  startPage: 'diary' | 'today';
 }
 
 // ---------- Food ----------
