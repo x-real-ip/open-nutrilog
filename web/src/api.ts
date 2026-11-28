@@ -24,6 +24,7 @@ import type {
   ProgressResponse,
   Recipe,
   RecipeInput,
+  SavedMeal,
   SourcesInfo,
   TargetResponse,
 } from '@shared/types.ts';
@@ -87,6 +88,11 @@ export const api = {
   copy: (body: { from: string; to?: string; days?: string[]; mealId?: number | null; entryIds?: string[]; toMealId?: number | null }) =>
     request<DiaryDay & { copied: number }>('POST', '/api/diary/copy', body),
   move: (body: { entryIds: string[]; day?: string | null; mealId?: number | null }) => request<{ moved: number }>('POST', '/api/diary/move', body),
+
+  savedMeals: () => request<{ savedMeals: SavedMeal[] }>('GET', '/api/saved-meals'),
+  createSavedMeal: (name: string, entryIds: string[]) => request<{ savedMeal: SavedMeal }>('POST', '/api/saved-meals', { name, entryIds }),
+  updateSavedMeal: (id: number, name: string, itemIds?: number[]) => request<{ savedMeal: SavedMeal }>('PUT', `/api/saved-meals/${id}`, { name, itemIds }),
+  deleteSavedMeal: (id: number) => request<{ ok: true }>('DELETE', `/api/saved-meals/${id}`),
 
   target: (day: string) => request<TargetResponse>('GET', `/api/targets/${day}`),
   setMark: (day: string, mark: Partial<DayMark>) => request<TargetResponse>('PUT', `/api/days/${day}/mark`, mark),
@@ -230,6 +236,18 @@ async function enqueue(op: PendingOp): Promise<void> {
 /** Logs or changes an entry: shown right away, sent when there is a connection. */
 export function saveEntry(input: EntryInput, preview: DiaryEntry): Promise<void> {
   return enqueue({ kind: 'put', id: preview.id, input, preview });
+}
+
+/** Logs every food of a saved meal into a meal of a day, through the queue like any entry. */
+export async function logSavedMeal(meal: SavedMeal, day: string, mealId: number): Promise<void> {
+  const now = Date.now();
+  for (const [i, item] of meal.items.entries()) {
+    const input: EntryInput = { day, mealId, productId: item.productId, amount: item.amount, unit: item.unit, servingLabel: item.servingLabel, quick: item.quick };
+    const preview: DiaryEntry = { ...item, ...input, id: newId(), createdAt: new Date(now + i).toISOString() };
+    await putPending({ kind: 'put', id: preview.id, input, preview });
+  }
+  notify();
+  void flushQueue();
 }
 
 export function removeEntry(id: string, day: string): Promise<void> {

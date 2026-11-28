@@ -16,6 +16,7 @@ const PRODUCT_REFS: Record<string, string[]> = {
   product_prefs: ['product_id'],
   recipe_ingredients: ['product_id'],
   diary_entries: ['product_id'],
+  saved_meal_items: ['product_id'],
 };
 /** Rows that make no sense without their product. */
 const DROP_WITHOUT_PRODUCT = new Set(['product_prefs', 'recipe_ingredients']);

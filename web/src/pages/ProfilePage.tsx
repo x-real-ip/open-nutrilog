@@ -552,6 +552,11 @@ function AboutSection() {
             <div className="title">{t('My recipes', 'Mijn recepten')}</div>
           </div>
         </Link>
+        <Link className="list-row" to="/saved-meals">
+          <div className="grow">
+            <div className="title">{t('Saved meals', 'Vaste maaltijden')}</div>
+          </div>
+        </Link>
         <Link className="list-row" to="/sources">
           <div className="grow">
             <div className="title">{t('Sources', 'Bronnen')}</div>
