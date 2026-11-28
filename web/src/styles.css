@@ -999,6 +999,13 @@ details.why summary::-webkit-details-marker {
   line-height: 1.1;
 }
 
+/* The day's target next to what was eaten: there, but quiet. */
+.day-total .of-goal {
+  font-size: 0.55em;
+  font-weight: 500;
+  color: var(--chalk-3);
+}
+
 .meal-head {
   margin-bottom: 6px;
 }

@@ -74,6 +74,7 @@ export default function DiaryPage() {
   const meals = view.meals.filter((m) => !m.hidden || view.entries.some((e) => e.mealId === m.id));
   const mealName = (id: number) => view.meals.find((m) => m.id === id)?.name ?? '';
   const queued = pendingCount();
+  const dayGoal = goal.data?.target?.kcal ?? null;
 
   const toggle = (ids: string[], on: boolean) =>
     setSelected((cur) => {
@@ -157,7 +158,14 @@ export default function DiaryPage() {
 
       <section className="panel day-total" aria-label={t('Total of the day', 'Totaal van de dag')}>
         <div className="spread">
-          <span className="value num">{kcal(view.totals.kcal)}</span>
+          {dayGoal ? (
+            <span className="value num">
+              {Math.round(view.totals.kcal)}
+              <span className="of-goal"> / {kcal(dayGoal)}</span>
+            </span>
+          ) : (
+            <span className="value num">{kcal(view.totals.kcal)}</span>
+          )}
           <span className="row" style={{ gap: 12 }}>
             {queued > 0 && <span className="tag warn">{t(`${queued} not synced yet`, `${queued} nog niet gesynchroniseerd`)}</span>}
             {view.entries.length > 0 && (
@@ -167,7 +175,12 @@ export default function DiaryPage() {
             )}
           </span>
         </div>
-        <div className="muted small">{macroLine(view.totals)}</div>
+        <div className="muted small">
+          {macroLine(view.totals)}
+          {dayGoal
+            ? ` · ${view.totals.kcal > dayGoal ? t(`${Math.round(view.totals.kcal - dayGoal)} over`, `${Math.round(view.totals.kcal - dayGoal)} te veel`) : t(`${Math.round(dayGoal - view.totals.kcal)} left`, `nog ${Math.round(dayGoal - view.totals.kcal)}`)}`
+            : ''}
+        </div>
       </section>
 
       {meals.map((meal) => {
