@@ -25,6 +25,8 @@ const fields = z.object({
   metStrength: z.number().min(2).max(10).default(DEFAULT_MET),
   trainingMinutes: z.number().int().min(10).max(180).default(60),
   workoutEnergyShare: z.union([z.literal(0), z.literal(50), z.literal(100)]).default(100),
+  fasting: z.boolean().default(false),
+  fastingGoalHours: z.number().int().min(1).max(72).default(16),
   /** Higher days (1 = Monday … 7 = Sunday) with their extra energy; the other days give it back. */
   shiftDays: z
     .array(z.number().int().min(1).max(7))

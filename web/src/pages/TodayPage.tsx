@@ -4,6 +4,7 @@ import type { DayTarget, TargetResponse } from '@shared/types.ts';
 import { sumNutrients } from '@shared/nutrition.ts';
 import { useInfo } from '../App.tsx';
 import { api, onQueueChange, withPending } from '../api.ts';
+import { FastingCard } from '../components/FastingCard.tsx';
 import { ErrorState, Loading, toast, useLoad } from '../components/ui.tsx';
 import { IconChevron } from '../components/Icons.tsx';
 import { grams, kcal, kg, longDate, signed, versionLabel } from '../format.ts';
@@ -206,6 +207,7 @@ export default function TodayPage() {
         </div>
       </section>
 
+      {profile?.fasting && <FastingCard defaultGoal={profile.fastingGoalHours} />}
       {week.data && week.data.completeDays > 0 && (
         <section className="section list">
           <Link className="list-row" to="/week" aria-label={t('Last week: weekly report', 'Vorige week: weekoverzicht')}>

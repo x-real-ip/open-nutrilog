@@ -1027,6 +1027,27 @@ details.why summary::-webkit-details-marker {
   color: var(--chalk-2);
 }
 
+/* Fasting: hours so far, and a bar towards the goal. */
+.fasting .value {
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.fasting .track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--deck-2);
+  overflow: hidden;
+}
+
+.fasting .bar {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--plate-green);
+}
+
 /* Picking entries for a bulk action: a check circle per row and a bar with the actions above the navigation. */
 .list-row.entry .pick {
   flex: none;
