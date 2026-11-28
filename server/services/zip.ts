@@ -1,11 +1,15 @@
 // Just enough ZIP to read the NEVO download (a .zip with a CSV inside) without a dependency: the central directory,
-// and entries that are stored or deflated. No encryption, no ZIP64 (the NEVO files are a few MB).
+// and entries that are stored or deflated. No encryption, no ZIP64. The download also holds large detail tables, so
+// an entry can be peeked at (`head`) without unpacking all of it.
 import zlib from 'node:zlib';
 
 export interface ZipEntry {
   name: string;
+  /** Unpacked size in bytes. */
   size: number;
   read(): Buffer;
+  /** The first bytes of the unpacked entry (at least `bytes` when the entry is that long), cheap for any size. */
+  head(bytes?: number): Buffer;
 }
 
 const EOCD = 0x06054b50;
@@ -41,16 +45,25 @@ export function readZip(buf: Buffer): ZipEntry[] {
     const name = buf.subarray(p + 46, p + 46 + nameLen).toString('utf8');
     p += 46 + nameLen + extraLen + commentLen;
     if (name.endsWith('/')) continue;
+    const raw = () => {
+      if (buf.readUInt32LE(local) !== LOCAL) throw new Error('broken zip entry');
+      const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+      if (method !== 0 && method !== 8) throw new Error(`unsupported zip compression (${method})`);
+      return buf.subarray(start, start + compressed);
+    };
     entries.push({
       name,
       size,
       read() {
-        if (buf.readUInt32LE(local) !== LOCAL) throw new Error('broken zip entry');
-        const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
-        const data = buf.subarray(start, start + compressed);
-        if (method === 0) return Buffer.from(data);
-        if (method === 8) return zlib.inflateRawSync(data);
-        throw new Error(`unsupported zip compression (${method})`);
+        const data = raw();
+        return method === 0 ? Buffer.from(data) : zlib.inflateRawSync(data);
+      },
+      head(bytes = 16 * 1024) {
+        const data = raw();
+        if (method === 0) return Buffer.from(data.subarray(0, bytes));
+        // Inflate only the start: a cut-off deflate stream gives what it can with a sync flush instead of an error.
+        // `bytes` compressed bytes unpack to at least as many, and (deflate tops out near 1:1000) never to much.
+        return Buffer.from(zlib.inflateRawSync(data.subarray(0, bytes), { finishFlush: zlib.constants.Z_SYNC_FLUSH }).subarray(0, bytes));
       },
     });
   }
